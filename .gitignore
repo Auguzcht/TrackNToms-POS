@@ -1,0 +1,34 @@
+node_modules# Node.js
+node_modules/
+
+# Build output
+/dist
+/build
+/.vite
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Coverage directory used by testing tools
+coverage/
+
+# Logs
+logs/
+
+# dotenv environment variables file
+.env*
