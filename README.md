@@ -77,21 +77,23 @@ Built with modern web technologies:
    - API Connection: http://localhost:3000
 
 ## 📝 Database Schema
-```
-graph LR
-    ITEMS[items] --> ITEM_INGREDIENTS[item_ingredients]
-    INGREDIENTS[ingredients] --> ITEM_INGREDIENTS
-    ITEMS --> SALES_DETAIL[sales_detail]
-    SALES_HEADER[sales_header] --> SALES_DETAIL
-    STAFF[staff] --> SALES_HEADER
-    STAFF --> MANAGERS[managers]
-    SUPPLIERS[suppliers] --> CONSIGNMENTS[consignments]
-    INGREDIENTS --> CONSIGNMENTS
+
+```mermaid
+erDiagram
+    ITEMS ||--o{ ITEM_INGREDIENTS : contains
+    INGREDIENTS ||--o{ ITEM_INGREDIENTS : used_in
+    ITEMS ||--o{ SALES_DETAIL : sold_as
+    SALES_HEADER ||--o{ SALES_DETAIL : contains
+    STAFF ||--o{ SALES_HEADER : processes
+    STAFF ||--o{ MANAGERS : can_be
+    SUPPLIERS ||--o{ CONSIGNMENTS : delivers
+    INGREDIENTS ||--o{ CONSIGNMENTS : received_as
 ```
 
 ## 🔄 System Workflow
-```
-graph TD
+
+```mermaid
+flowchart TD
     A[Customer Orders] --> B[POS Terminal]
     B --> C[Process Sale]
     C --> D{Payment Complete?}
@@ -107,20 +109,17 @@ graph TD
     L --> M[Update Inventory]
     M --> N[Pay Supplier]
     
-    style A fill:#f9a8d4,stroke:#333
-    style B fill:#a5f3fc,stroke:#333
-    style C fill:#a5f3fc,stroke:#333
-    style D fill:#fde68a,stroke:#333
-    style E fill:#a5f3fc,stroke:#333
-    style F fill:#a5f3fc,stroke:#333
-    style G fill:#a5f3fc,stroke:#333
-    style H fill:#fde68a,stroke:#333
-    style I fill:#fca5a5,stroke:#333
-    style J fill:#bbf7d0,stroke:#333
-    style K fill:#f9a8d4,stroke:#333
-    style L fill:#a5f3fc,stroke:#333
-    style M fill:#a5f3fc,stroke:#333
-    style N fill:#bbf7d0,stroke:#333
+    classDef customer fill:#f9a8d4,stroke:#333
+    classDef process fill:#a5f3fc,stroke:#333
+    classDef decision fill:#fde68a,stroke:#333
+    classDef alert fill:#fca5a5,stroke:#333
+    classDef complete fill:#bbf7d0,stroke:#333
+    
+    class A,K customer
+    class B,C,E,F,G,L,M process
+    class D,H decision
+    class I alert
+    class J,N complete
 ```
 
 ## 📊 Usage Examples
