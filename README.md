@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src/assets/logos/TomNToms-Logo-2.png" alt="TrackNToms Logo" width="300"/>
+  <img src="src/assets/TomNToms-Logo-1.png" alt="TrackNToms Logo" width="300"/>
   <p><em>Advanced Point-of-Sale and Inventory Management System for Tom N Toms Coffee in Davao City</em></p>
 </div>
 
