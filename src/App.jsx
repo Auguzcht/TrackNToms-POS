@@ -9,7 +9,8 @@ import Sidebar from './components/layout/Sidebar';
 import Footer from './components/layout/Footer';
 import { useAuth } from './hooks/useAuth';
 import { API_BASE_URL } from './config/constants';
-import DatabaseConnectionTest from './components/common/DatabaseConnectionTest';
+// import DatabaseConnectionTest from './components/common/DatabaseConnectionTest';
+// import DatabaseTables from './components/common/DatabaseTables';
 
 // Pages
 import LoginPage from './pages/LoginPage';

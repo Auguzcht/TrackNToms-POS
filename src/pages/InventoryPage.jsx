@@ -8,9 +8,25 @@ import IngredientForm from '../components/inventory/IngredientForm';
 import ItemForm from '../components/inventory/ItemForm';
 import { useInventory } from '../hooks/useInventory';
 import Swal from 'sweetalert2';
+import { toast } from 'react-hot-toast';
 
 const InventoryPage = () => {
-  const { ingredients, items, loading, fetchInventory, deleteIngredient, deleteItem } = useInventory();
+  const { 
+    ingredients, 
+    items, 
+    loading, 
+    error,
+    fetchInventory, 
+    fetchIngredients,
+    fetchItems,
+    addIngredient,
+    updateIngredient,
+    deleteIngredient,
+    addItem,
+    updateItem,
+    deleteItem
+  } = useInventory();
+  
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -27,14 +43,37 @@ const InventoryPage = () => {
   const [editingIngredient, setEditingIngredient] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [iconHovered, setIconHovered] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Update active tab when URL changes
   useEffect(() => {
-    setActiveTab(getTabFromURL());
-  }, [location.search]);
+    const tab = getTabFromURL();
+    setActiveTab(tab);
+    
+    // Load specific data based on active tab
+    if (tab === 'ingredients') {
+      fetchIngredients().catch(err => 
+        toast.error('Failed to fetch ingredients')
+      );
+    } else {
+      fetchItems().catch(err => 
+        toast.error('Failed to fetch menu items')
+      );
+    }
+  }, [location.search, fetchIngredients, fetchItems]);
 
+  // Initial data load
   useEffect(() => {
-    fetchInventory();
+    const loadData = async () => {
+      try {
+        await fetchInventory();
+      } catch (error) {
+        console.error('Error loading inventory data:', error);
+        toast.error('Failed to load inventory data');
+      }
+    };
+    
+    loadData();
     
     // Set the background color when the component mounts and restore when unmounting
     const originalBgColor = document.body.style.backgroundColor;
@@ -43,7 +82,19 @@ const InventoryPage = () => {
     return () => {
       document.body.style.backgroundColor = originalBgColor;
     };
-  }, [fetchInventory]);
+  }, [fetchInventory, refreshTrigger]);
+
+  // Display error notification if API error occurs
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
+
+  // Handle tab change
+  const handleTabChange = (tab) => {
+    navigate(`?tab=${tab}`);
+  };
 
   // Handle adding a new menu item
   const handleAddItem = () => {
@@ -84,24 +135,15 @@ const InventoryPage = () => {
 
       if (result.isConfirmed) {
         await deleteIngredient(ingredientId);
-        
-        Swal.fire({
-          title: 'Deleted!',
-          text: 'The ingredient has been deleted.',
-          icon: 'success',
-          confirmButtonColor: '#571C1F'
-        });
-        
-        await fetchInventory();
+        setRefreshTrigger(prev => prev + 1);
       }
     } catch (error) {
       Swal.fire({
         title: 'Error!',
-        text: 'Failed to delete the ingredient.',
+        text: error.message || 'Failed to delete the ingredient.',
         icon: 'error',
         confirmButtonColor: '#571C1F'
       });
-      console.error('Error deleting ingredient:', error);
     }
   };
 
@@ -120,24 +162,15 @@ const InventoryPage = () => {
 
       if (result.isConfirmed) {
         await deleteItem(itemId);
-        
-        Swal.fire({
-          title: 'Deleted!',
-          text: 'The item has been deleted.',
-          icon: 'success',
-          confirmButtonColor: '#571C1F'
-        });
-        
-        await fetchInventory();
+        setRefreshTrigger(prev => prev + 1);
       }
     } catch (error) {
       Swal.fire({
         title: 'Error!',
-        text: 'Failed to delete the item.',
+        text: error.message || 'Failed to delete the item.',
         icon: 'error',
         confirmButtonColor: '#571C1F'
       });
-      console.error('Error deleting item:', error);
     }
   };
 
@@ -145,14 +178,14 @@ const InventoryPage = () => {
   const handleIngredientSubmit = async () => {
     setShowIngredientModal(false);
     setEditingIngredient(null);
-    await fetchInventory();
+    setRefreshTrigger(prev => prev + 1);
   };
 
   // Handle successful item submission (both add and edit)
   const handleItemSubmit = async () => {
     setShowItemModal(false);
     setEditingItem(null);
-    await fetchInventory();
+    setRefreshTrigger(prev => prev + 1);
   };
 
   // Handle cancelling ingredient form

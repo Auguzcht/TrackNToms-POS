@@ -78,9 +78,16 @@ const PurchaseOrderFilters = ({ filters, setFilters, suppliers }) => {
   );
 };
 
-const PurchaseOrderList = () => {
-  const { suppliers, loading: suppliersLoading } = useSuppliers();
-  const { purchaseOrders, fetchPurchaseOrders, deletePurchaseOrder, loading, error } = useInventory();
+const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: propSuppliers }) => {
+  const { 
+    suppliers = propSuppliers || [], 
+    loading: suppliersLoading, // Rename loading to suppliersLoading
+    error, 
+    purchaseOrders, 
+    fetchPurchaseOrders, 
+    deletePurchaseOrder 
+  } = useSuppliers();
+  const { loading: inventoryLoading, error: inventoryError } = useInventory();
   
   const [filteredPurchaseOrders, setFilteredPurchaseOrders] = useState([]);
   const [filters, setFilters] = useState({
@@ -143,44 +150,56 @@ const PurchaseOrderList = () => {
 
   // Load purchase orders when component mounts
   useEffect(() => {
-    // Uncomment this when you have a real API implementation
-    // fetchPurchaseOrders();
-    
-    // For now, use mock data
-    setFilteredPurchaseOrders(mockPurchaseOrders);
-  }, []);
+    // Fetch real purchase orders data
+    fetchPurchaseOrders();
+  }, [fetchPurchaseOrders]);
 
   // Apply filters and sorting to purchase orders list
   useEffect(() => {
-    // Start with mock data for now
-    let result = [...mockPurchaseOrders];
+    if (!purchaseOrders) {
+      setFilteredPurchaseOrders([]);
+      return;
+    }
+    
+    // Start with actual purchase orders from API
+    let result = [...purchaseOrders];
     
     // Apply search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       result = result.filter(item => 
-        (item.orderNumber && item.orderNumber.toLowerCase().includes(searchLower))
+        (item.purchase_id && item.purchase_id.toString().includes(searchLower))
       );
     }
     
     // Apply supplier filter
     if (filters.supplierId) {
-      result = result.filter(item => item.supplierId.toString() === filters.supplierId);
+      result = result.filter(item => item.supplier_id?.toString() === filters.supplierId);
     }
     
-    // Apply status filter
+    // Apply status filter - requires adding status field to purchases table
     if (filters.status) {
       result = result.filter(item => item.status === filters.status);
     }
     
-    // Apply sorting
+    // Apply sorting - updated field names to match database schema
     if (sortConfig.key) {
       result.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
+        // Map frontend keys to database field names
+        const keyMap = {
+          'orderDate': 'purchase_date',
+          'orderNumber': 'purchase_id', 
+          'total': 'total_amount',
+          'supplierId': 'supplier_id'
+        };
+        
+        const dbKey = keyMap[sortConfig.key] || sortConfig.key;
+        
+        let aValue = a[dbKey];
+        let bValue = b[dbKey];
         
         // Handle dates
-        if (sortConfig.key === 'orderDate' || sortConfig.key === 'deliveryDate') {
+        if (dbKey === 'purchase_date') {
           aValue = new Date(aValue || 0).getTime();
           bValue = new Date(bValue || 0).getTime();
         }
@@ -196,7 +215,7 @@ const PurchaseOrderList = () => {
     }
     
     setFilteredPurchaseOrders(result);
-  }, [filters, sortConfig]);
+  }, [purchaseOrders, filters, sortConfig]);
 
   // Handle sort click
   const handleSort = (key) => {
@@ -313,7 +332,7 @@ const PurchaseOrderList = () => {
     );
   };
 
-  if (loading) {
+  if (suppliersLoading || inventoryLoading) {
     return (
       <Card className="animate-pulse">
         <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
@@ -428,21 +447,19 @@ const PurchaseOrderList = () => {
                 {filteredPurchaseOrders.length > 0 ? (
                   filteredPurchaseOrders.map((po, index) => (
                     <motion.tr 
-                      key={po.id}
+                      key={po.purchase_id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2, delay: index * 0.05 }}
                       className="bg-white hover:bg-[#FFF6F2] dark:bg-dark-lighter dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
                       onClick={(e) => {
-                        // Prevent triggering the row click when clicking on action buttons
                         if (e.target.closest('button')) return;
-                        
                         handleViewPurchaseOrder(po);
                       }}
                     >
                       <td className="px-6 py-4 text-sm text-[#571C1F]">
-                        {formatDate(po.orderDate)}
+                        {formatDate(po.purchase_date)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -453,34 +470,32 @@ const PurchaseOrderList = () => {
                             />
                           </div>
                           <div>
-                            <div className="font-medium text-[#571C1F]">{po.orderNumber || 'No Number'}</div>
-                            {po.deliveryDate && (
-                              <div className="text-xs text-gray-600 truncate max-w-xs">
-                                Delivery: {formatDate(po.deliveryDate)}
-                              </div>
-                            )}
+                            <div className="font-medium text-[#571C1F]">PO-{po.purchase_id.toString().padStart(4, '0')}</div>
+                            <div className="text-xs text-gray-600 truncate max-w-xs">
+                              {po.first_name} {po.last_name}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-600 font-medium">
-                        {getSupplierName(po.supplierId)}
+                        {po.supplier_name || 'Not Specified'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-600 font-medium text-right">
-                        {calculateTotalItems(po)} items
+                      <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-600 font-medium text-center">
+                        {po.items?.length || 0} items
                       </td>
-                      <td className="px-6 py-4 text-sm text-[#571C1F] dark:text-[#571C1F] font-medium text-right">
-                        {formatCurrency(po.total)}
+                      <td className="px-6 py-4 text-sm text-[#571C1F] dark:text-[#571C1F] font-medium text-center">
+                        {formatCurrency(po.total_amount)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(po.status)}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(po.status || 'pending')}`}>
                           <span className={`w-1.5 h-1.5 ${
-                            po.status === 'completed' 
+                            (po.status || 'pending') === 'completed' 
                               ? 'bg-[#003B25]' 
-                              : po.status === 'pending'
+                              : (po.status || 'pending') === 'pending'
                                 ? 'bg-amber-500'
                                 : 'bg-[#571C1F]'
                           } rounded-full mr-1`}></span>
-                          {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
+                          {(po.status || 'pending').charAt(0).toUpperCase() + (po.status || 'pending').slice(1)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
@@ -488,7 +503,7 @@ const PurchaseOrderList = () => {
                           <motion.button
                             whileHover={{ scale: 1.05, y: -1 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => toast.info('Edit functionality coming soon!')}
+                            onClick={() => onEdit(po.purchase_id)}
                             className="p-1.5 text-[#003B25] hover:text-[#003B25] hover:bg-[#003B25]/10 rounded-full transition"
                             aria-label="Edit purchase order"
                             title="Edit"
@@ -501,7 +516,7 @@ const PurchaseOrderList = () => {
                           <motion.button
                             whileHover={{ scale: 1.05, y: -1 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => handleDeleteClick(po)}
+                            onClick={() => onDelete(po.purchase_id)}
                             className="p-1.5 text-[#571C1F] hover:text-[#571C1F] hover:bg-[#571C1F]/10 rounded-full transition"
                             aria-label="Delete purchase order"
                             title="Delete"
@@ -553,7 +568,7 @@ const PurchaseOrderList = () => {
         </div>
       </div>
 
-      {!loading && filteredPurchaseOrders.length > 0 && (
+      {!suppliersLoading && filteredPurchaseOrders.length > 0 && (
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -651,22 +666,22 @@ const PurchaseOrderList = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-[#571C1F]/10">
-                    {currentPurchaseOrder.items.map((item, idx) => (
-                      <tr key={`${item.id}-${idx}`} className="hover:bg-[#FFF6F2]/50 transition-colors">
+                    {currentPurchaseOrder.items && currentPurchaseOrder.items.map((item, idx) => (
+                      <tr key={`${item.ingredient_id}-${idx}`} className="hover:bg-[#FFF6F2]/50 transition-colors">
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                          {item.name}
+                          {item.ingredient_name}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-center">
                           {item.quantity}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 text-center">
-                          {item.unit}
+                          {item.ingredient_unit}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">
-                          {formatCurrency(item.unitPrice)}
+                          {formatCurrency(item.unit_price)}
                         </td>
                         <td className="px-4 py-3 text-sm text-[#571C1F] font-medium text-right">
-                          {formatCurrency(item.quantity * item.unitPrice)}
+                          {formatCurrency(item.subtotal)}
                         </td>
                       </tr>
                     ))}

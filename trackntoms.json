@@ -1,0 +1,1570 @@
+[
+    {
+      "type": "header",
+      "version": "5.2.1",
+      "comment": "Export to JSON plugin for PHPMyAdmin"
+    },
+    {
+      "type": "database",
+      "name": "trackntoms"
+    },
+    {
+      "type": "table",
+      "name": "cashiers",
+      "database": "trackntoms",
+      "data": [
+        {
+          "cashier_id": "1",
+          "staff_id": "3",
+          "sales_access": "1",
+          "status": "Active",
+          "date_effectivity": "2024-07-01"
+        },
+        {
+          "cashier_id": "2",
+          "staff_id": "4",
+          "sales_access": "1",
+          "status": "Active",
+          "date_effectivity": "2024-07-15"
+        },
+        {
+          "cashier_id": "3",
+          "staff_id": "5",
+          "sales_access": "1",
+          "status": "Active",
+          "date_effectivity": "2024-08-01"
+        },
+        {
+          "cashier_id": "4",
+          "staff_id": "7",
+          "sales_access": "1",
+          "status": "Active",
+          "date_effectivity": "2024-09-15"
+        },
+        {
+          "cashier_id": "5",
+          "staff_id": "8",
+          "sales_access": "1",
+          "status": "Active",
+          "date_effectivity": "2024-10-01"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "consignment",
+      "database": "trackntoms",
+      "data": [
+        {
+          "consignment_id": "1",
+          "supplier_id": "2",
+          "date": "2025-02-10",
+          "invoice_number": "INV-SDB-2025-0210",
+          "reference_number": "REF-2025-001",
+          "manager_id": "1",
+          "total": "785.50"
+        },
+        {
+          "consignment_id": "2",
+          "supplier_id": "1",
+          "date": "2025-02-15",
+          "invoice_number": "INV-CBI-2025-0215",
+          "reference_number": "REF-2025-002",
+          "manager_id": "2",
+          "total": "1250.75"
+        },
+        {
+          "consignment_id": "3",
+          "supplier_id": "3",
+          "date": "2025-03-01",
+          "invoice_number": "INV-DFC-2025-0301",
+          "reference_number": "REF-2025-003",
+          "manager_id": "1",
+          "total": "620.25"
+        },
+        {
+          "consignment_id": "4",
+          "supplier_id": "5",
+          "date": "2025-02-25",
+          "invoice_number": "INV-EPS-2025-0225",
+          "reference_number": "REF-2025-004",
+          "manager_id": "3",
+          "total": "340.80"
+        },
+        {
+          "consignment_id": "5",
+          "supplier_id": "4",
+          "date": "2025-02-20",
+          "invoice_number": "INV-CEP-2025-0220",
+          "reference_number": "REF-2025-005",
+          "manager_id": "2",
+          "total": "895.60"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "consignment_details",
+      "database": "trackntoms",
+      "data": [
+        {
+          "consignment_id": "1",
+          "item_id": "7",
+          "quantity": "50",
+          "supplier_price": "2.50",
+          "production_date": "2025-02-09",
+          "usa_total": "125.00"
+        },
+        {
+          "consignment_id": "1",
+          "item_id": "8",
+          "quantity": "60",
+          "supplier_price": "2.25",
+          "production_date": "2025-02-09",
+          "usa_total": "135.00"
+        },
+        {
+          "consignment_id": "1",
+          "item_id": "9",
+          "quantity": "45",
+          "supplier_price": "2.75",
+          "production_date": "2025-02-09",
+          "usa_total": "123.75"
+        },
+        {
+          "consignment_id": "2",
+          "item_id": "14",
+          "quantity": "100",
+          "supplier_price": "1.50",
+          "production_date": "2025-02-05",
+          "usa_total": "150.00"
+        },
+        {
+          "consignment_id": "2",
+          "item_id": "15",
+          "quantity": "24",
+          "supplier_price": "8.50",
+          "production_date": "2025-01-20",
+          "usa_total": "204.00"
+        },
+        {
+          "consignment_id": "3",
+          "item_id": "16",
+          "quantity": "100",
+          "supplier_price": "2.50",
+          "production_date": "2025-01-15",
+          "usa_total": "250.00"
+        },
+        {
+          "consignment_id": "4",
+          "item_id": "17",
+          "quantity": "10",
+          "supplier_price": "12.00",
+          "production_date": "2025-02-10",
+          "usa_total": "120.00"
+        },
+        {
+          "consignment_id": "4",
+          "item_id": "18",
+          "quantity": "10",
+          "supplier_price": "15.00",
+          "production_date": "2025-02-10",
+          "usa_total": "150.00"
+        },
+        {
+          "consignment_id": "5",
+          "item_id": "19",
+          "quantity": "10",
+          "supplier_price": "14.50",
+          "production_date": "2025-02-15",
+          "usa_total": "145.00"
+        },
+        {
+          "consignment_id": "5",
+          "item_id": "20",
+          "quantity": "10",
+          "supplier_price": "10.00",
+          "production_date": "2025-02-15",
+          "usa_total": "100.00"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "ingredients",
+      "database": "trackntoms",
+      "data": [
+        {
+          "ingredient_id": "1",
+          "name": "Arabica Coffee Beans",
+          "unit": "kg",
+          "quantity": "50.00",
+          "minimum_quantity": "10.00",
+          "unit_cost": "15.99",
+          "last_restock_date": "2025-02-15",
+          "image": "arabica_beans.jpg"
+        },
+        {
+          "ingredient_id": "2",
+          "name": "Robusta Coffee Beans",
+          "unit": "kg",
+          "quantity": "30.00",
+          "minimum_quantity": "8.00",
+          "unit_cost": "12.99",
+          "last_restock_date": "2025-02-15",
+          "image": "robusta_beans.jpg"
+        },
+        {
+          "ingredient_id": "3",
+          "name": "Whole Milk",
+          "unit": "L",
+          "quantity": "80.00",
+          "minimum_quantity": "20.00",
+          "unit_cost": "2.50",
+          "last_restock_date": "2025-03-01",
+          "image": "whole_milk.jpg"
+        },
+        {
+          "ingredient_id": "4",
+          "name": "Almond Milk",
+          "unit": "L",
+          "quantity": "25.00",
+          "minimum_quantity": "5.00",
+          "unit_cost": "3.75",
+          "last_restock_date": "2025-03-01",
+          "image": "almond_milk.jpg"
+        },
+        {
+          "ingredient_id": "5",
+          "name": "Oat Milk",
+          "unit": "L",
+          "quantity": "20.00",
+          "minimum_quantity": "5.00",
+          "unit_cost": "3.95",
+          "last_restock_date": "2025-03-01",
+          "image": "oat_milk.jpg"
+        },
+        {
+          "ingredient_id": "6",
+          "name": "Sugar",
+          "unit": "kg",
+          "quantity": "35.00",
+          "minimum_quantity": "10.00",
+          "unit_cost": "1.50",
+          "last_restock_date": "2025-02-10",
+          "image": "sugar.jpg"
+        },
+        {
+          "ingredient_id": "7",
+          "name": "Vanilla Syrup",
+          "unit": "L",
+          "quantity": "8.00",
+          "minimum_quantity": "2.00",
+          "unit_cost": "8.99",
+          "last_restock_date": "2025-02-20",
+          "image": "vanilla_syrup.jpg"
+        },
+        {
+          "ingredient_id": "8",
+          "name": "Caramel Syrup",
+          "unit": "L",
+          "quantity": "7.50",
+          "minimum_quantity": "2.00",
+          "unit_cost": "8.99",
+          "last_restock_date": "2025-02-20",
+          "image": "caramel_syrup.jpg"
+        },
+        {
+          "ingredient_id": "9",
+          "name": "Chocolate Syrup",
+          "unit": "L",
+          "quantity": "8.50",
+          "minimum_quantity": "2.00",
+          "unit_cost": "9.50",
+          "last_restock_date": "2025-02-20",
+          "image": "chocolate_syrup.jpg"
+        },
+        {
+          "ingredient_id": "10",
+          "name": "Whipped Cream",
+          "unit": "L",
+          "quantity": "10.00",
+          "minimum_quantity": "3.00",
+          "unit_cost": "4.50",
+          "last_restock_date": "2025-03-01",
+          "image": "whipped_cream.jpg"
+        },
+        {
+          "ingredient_id": "11",
+          "name": "Flour",
+          "unit": "kg",
+          "quantity": "25.00",
+          "minimum_quantity": "5.00",
+          "unit_cost": "1.25",
+          "last_restock_date": "2025-02-10",
+          "image": "flour.jpg"
+        },
+        {
+          "ingredient_id": "12",
+          "name": "Butter",
+          "unit": "kg",
+          "quantity": "15.00",
+          "minimum_quantity": "3.00",
+          "unit_cost": "5.99",
+          "last_restock_date": "2025-03-01",
+          "image": "butter.jpg"
+        },
+        {
+          "ingredient_id": "13",
+          "name": "Eggs",
+          "unit": "dozen",
+          "quantity": "20.00",
+          "minimum_quantity": "5.00",
+          "unit_cost": "3.50",
+          "last_restock_date": "2025-03-01",
+          "image": "eggs.jpg"
+        },
+        {
+          "ingredient_id": "14",
+          "name": "Baking Powder",
+          "unit": "kg",
+          "quantity": "3.00",
+          "minimum_quantity": "0.50",
+          "unit_cost": "4.25",
+          "last_restock_date": "2025-01-15",
+          "image": "baking_powder.jpg"
+        },
+        {
+          "ingredient_id": "15",
+          "name": "Cocoa Powder",
+          "unit": "kg",
+          "quantity": "5.00",
+          "minimum_quantity": "1.00",
+          "unit_cost": "9.99",
+          "last_restock_date": "2025-01-15",
+          "image": "cocoa_powder.jpg"
+        },
+        {
+          "ingredient_id": "16",
+          "name": "Cinnamon",
+          "unit": "kg",
+          "quantity": "2.00",
+          "minimum_quantity": "0.50",
+          "unit_cost": "12.99",
+          "last_restock_date": "2025-01-15",
+          "image": "cinnamon.jpg"
+        },
+        {
+          "ingredient_id": "17",
+          "name": "Paper Cups (12oz)",
+          "unit": "pcs",
+          "quantity": "500.00",
+          "minimum_quantity": "100.00",
+          "unit_cost": "0.15",
+          "last_restock_date": "2025-02-25",
+          "image": "paper_cups.jpg"
+        },
+        {
+          "ingredient_id": "18",
+          "name": "Paper Cups (16oz)",
+          "unit": "pcs",
+          "quantity": "500.00",
+          "minimum_quantity": "100.00",
+          "unit_cost": "0.18",
+          "last_restock_date": "2025-02-25",
+          "image": "paper_cups_large.jpg"
+        },
+        {
+          "ingredient_id": "19",
+          "name": "Napkins",
+          "unit": "pcs",
+          "quantity": "1000.00",
+          "minimum_quantity": "200.00",
+          "unit_cost": "0.03",
+          "last_restock_date": "2025-02-25",
+          "image": "napkins.jpg"
+        },
+        {
+          "ingredient_id": "20",
+          "name": "Stirrers",
+          "unit": "pcs",
+          "quantity": "800.00",
+          "minimum_quantity": "150.00",
+          "unit_cost": "0.02",
+          "last_restock_date": "2025-02-25",
+          "image": "stirrers.jpg"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "items",
+      "database": "trackntoms",
+      "data": [
+        {
+          "item_id": "1",
+          "item_name": "Espresso",
+          "category": "Coffee",
+          "base_price": "3.50",
+          "description": "Strong, concentrated coffee served in a small cup",
+          "image": "espresso.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "2",
+          "item_name": "Americano",
+          "category": "Coffee",
+          "base_price": "4.00",
+          "description": "Espresso diluted with hot water",
+          "image": "americano.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "3",
+          "item_name": "Cappuccino",
+          "category": "Coffee",
+          "base_price": "4.50",
+          "description": "Espresso with steamed milk and foam",
+          "image": "cappuccino.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "4",
+          "item_name": "Latte",
+          "category": "Coffee",
+          "base_price": "4.75",
+          "description": "Espresso with steamed milk",
+          "image": "latte.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "5",
+          "item_name": "Mocha",
+          "category": "Coffee",
+          "base_price": "5.25",
+          "description": "Espresso with chocolate and steamed milk",
+          "image": "mocha.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "6",
+          "item_name": "Caramel Macchiato",
+          "category": "Coffee",
+          "base_price": "5.50",
+          "description": "Vanilla-flavored espresso with caramel and steamed milk",
+          "image": "caramel_macchiato.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "7",
+          "item_name": "Chocolate Croissant",
+          "category": "Pastries",
+          "base_price": "3.95",
+          "description": "Buttery croissant with chocolate filling",
+          "image": "chocolate_croissant.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "8",
+          "item_name": "Blueberry Muffin",
+          "category": "Pastries",
+          "base_price": "3.75",
+          "description": "Moist muffin with blueberries",
+          "image": "blueberry_muffin.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "9",
+          "item_name": "Cinnamon Roll",
+          "category": "Pastries",
+          "base_price": "4.25",
+          "description": "Sweet roll with cinnamon and icing",
+          "image": "cinnamon_roll.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "10",
+          "item_name": "Ham & Cheese Sandwich",
+          "category": "Food",
+          "base_price": "6.50",
+          "description": "Fresh sandwich with ham, cheese, and greens",
+          "image": "ham_cheese_sandwich.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "11",
+          "item_name": "Chicken Salad Wrap",
+          "category": "Food",
+          "base_price": "7.50",
+          "description": "Grilled chicken with mixed greens in a wrap",
+          "image": "chicken_salad_wrap.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "12",
+          "item_name": "Iced Coffee",
+          "category": "Drinks",
+          "base_price": "4.25",
+          "description": "Chilled coffee served over ice",
+          "image": "iced_coffee.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "13",
+          "item_name": "Iced Tea",
+          "category": "Drinks",
+          "base_price": "3.75",
+          "description": "Freshly brewed tea served over ice",
+          "image": "iced_tea.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "14",
+          "item_name": "Bottled Water",
+          "category": "Drinks",
+          "base_price": "2.50",
+          "description": "Pure spring water in a recyclable bottle",
+          "image": "bottled_water.jpg",
+          "is_externally_sourced": "1"
+        },
+        {
+          "item_id": "15",
+          "item_name": "Ceramic Mug",
+          "category": "Utensils",
+          "base_price": "12.99",
+          "description": "High-quality ceramic mug with shop logo",
+          "image": "ceramic_mug.jpg",
+          "is_externally_sourced": "1"
+        },
+        {
+          "item_id": "16",
+          "item_name": "Reusable Straw",
+          "category": "Utensils",
+          "base_price": "3.99",
+          "description": "Eco-friendly metal straw",
+          "image": "reusable_straw.jpg",
+          "is_externally_sourced": "1"
+        },
+        {
+          "item_id": "17",
+          "item_name": "Extra Shot",
+          "category": "Add Ons",
+          "base_price": "1.00",
+          "description": "Additional shot of espresso",
+          "image": "extra_shot.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "18",
+          "item_name": "Alternative Milk",
+          "category": "Add Ons",
+          "base_price": "0.75",
+          "description": "Substitute with almond, oat, or soy milk",
+          "image": "alt_milk.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "19",
+          "item_name": "Flavor Syrup",
+          "category": "Add Ons",
+          "base_price": "0.75",
+          "description": "Add vanilla, caramel, or hazelnut flavor",
+          "image": "flavor_syrup.jpg",
+          "is_externally_sourced": "0"
+        },
+        {
+          "item_id": "20",
+          "item_name": "Whipped Cream",
+          "category": "Add Ons",
+          "base_price": "0.50",
+          "description": "Add whipped cream topping",
+          "image": "whipped_cream_addon.jpg",
+          "is_externally_sourced": "0"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "item_ingredients",
+      "database": "trackntoms",
+      "data": [
+        {
+          "item_id": "1",
+          "ingredient_id": "1",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "2",
+          "ingredient_id": "1",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "3",
+          "ingredient_id": "1",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "3",
+          "ingredient_id": "3",
+          "quantity": "0.15"
+        },
+        {
+          "item_id": "4",
+          "ingredient_id": "1",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "4",
+          "ingredient_id": "3",
+          "quantity": "0.25"
+        },
+        {
+          "item_id": "5",
+          "ingredient_id": "1",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "5",
+          "ingredient_id": "3",
+          "quantity": "0.20"
+        },
+        {
+          "item_id": "5",
+          "ingredient_id": "9",
+          "quantity": "0.03"
+        },
+        {
+          "item_id": "6",
+          "ingredient_id": "1",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "6",
+          "ingredient_id": "3",
+          "quantity": "0.20"
+        },
+        {
+          "item_id": "6",
+          "ingredient_id": "7",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "6",
+          "ingredient_id": "8",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "7",
+          "ingredient_id": "11",
+          "quantity": "0.10"
+        },
+        {
+          "item_id": "7",
+          "ingredient_id": "12",
+          "quantity": "0.05"
+        },
+        {
+          "item_id": "7",
+          "ingredient_id": "15",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "8",
+          "ingredient_id": "11",
+          "quantity": "0.12"
+        },
+        {
+          "item_id": "8",
+          "ingredient_id": "12",
+          "quantity": "0.04"
+        },
+        {
+          "item_id": "8",
+          "ingredient_id": "13",
+          "quantity": "0.17"
+        },
+        {
+          "item_id": "8",
+          "ingredient_id": "14",
+          "quantity": "0.01"
+        },
+        {
+          "item_id": "9",
+          "ingredient_id": "6",
+          "quantity": "0.05"
+        },
+        {
+          "item_id": "9",
+          "ingredient_id": "11",
+          "quantity": "0.15"
+        },
+        {
+          "item_id": "9",
+          "ingredient_id": "12",
+          "quantity": "0.06"
+        },
+        {
+          "item_id": "9",
+          "ingredient_id": "16",
+          "quantity": "0.01"
+        },
+        {
+          "item_id": "12",
+          "ingredient_id": "2",
+          "quantity": "0.03"
+        },
+        {
+          "item_id": "17",
+          "ingredient_id": "1",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "18",
+          "ingredient_id": "4",
+          "quantity": "0.25"
+        },
+        {
+          "item_id": "19",
+          "ingredient_id": "7",
+          "quantity": "0.02"
+        },
+        {
+          "item_id": "20",
+          "ingredient_id": "10",
+          "quantity": "0.03"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "managers",
+      "database": "trackntoms",
+      "data": [
+        {
+          "manager_id": "1",
+          "staff_id": "1",
+          "inventory_access": "1",
+          "sales_access": "1",
+          "system_admin": "1",
+          "status": "Active",
+          "date_effectivity": "2024-05-01"
+        },
+        {
+          "manager_id": "2",
+          "staff_id": "2",
+          "inventory_access": "1",
+          "sales_access": "1",
+          "system_admin": "0",
+          "status": "Active",
+          "date_effectivity": "2024-06-15"
+        },
+        {
+          "manager_id": "3",
+          "staff_id": "6",
+          "inventory_access": "1",
+          "sales_access": "1",
+          "system_admin": "0",
+          "status": "Active",
+          "date_effectivity": "2024-09-01"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "pullout",
+      "database": "trackntoms",
+      "data": [
+        {
+          "pullout_id": "1",
+          "ingredient_id": "3",
+          "staff_id": "3",
+          "manager_id": "1",
+          "quantity": "5.00",
+          "reason": "Expired product",
+          "date_of_pullout": "2025-03-05"
+        },
+        {
+          "pullout_id": "2",
+          "ingredient_id": "13",
+          "staff_id": "4",
+          "manager_id": "2",
+          "quantity": "2.00",
+          "reason": "Damaged packaging",
+          "date_of_pullout": "2025-03-07"
+        },
+        {
+          "pullout_id": "3",
+          "ingredient_id": "10",
+          "staff_id": "5",
+          "manager_id": "3",
+          "quantity": "1.50",
+          "reason": "Quality issues",
+          "date_of_pullout": "2025-03-08"
+        },
+        {
+          "pullout_id": "4",
+          "ingredient_id": "7",
+          "staff_id": "7",
+          "manager_id": "1",
+          "quantity": "0.75",
+          "reason": "Leaking container",
+          "date_of_pullout": "2025-03-09"
+        },
+        {
+          "pullout_id": "5",
+          "ingredient_id": "17",
+          "staff_id": "8",
+          "manager_id": "2",
+          "quantity": "25.00",
+          "reason": "Defective batch",
+          "date_of_pullout": "2025-03-10"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "purchase",
+      "database": "trackntoms",
+      "data": [
+        {
+          "purchase_id": "1",
+          "staff_id": "1",
+          "manager_id": null,
+          "purchase_date": "2025-02-10 10:30:00",
+          "total_amount": "325.50"
+        },
+        {
+          "purchase_id": "2",
+          "staff_id": "2",
+          "manager_id": null,
+          "purchase_date": "2025-02-15 11:15:00",
+          "total_amount": "850.25"
+        },
+        {
+          "purchase_id": "3",
+          "staff_id": "6",
+          "manager_id": null,
+          "purchase_date": "2025-02-20 09:45:00",
+          "total_amount": "410.75"
+        },
+        {
+          "purchase_id": "4",
+          "staff_id": "1",
+          "manager_id": null,
+          "purchase_date": "2025-02-25 14:20:00",
+          "total_amount": "275.80"
+        },
+        {
+          "purchase_id": "5",
+          "staff_id": "2",
+          "manager_id": null,
+          "purchase_date": "2025-03-01 08:50:00",
+          "total_amount": "575.20"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "purchase_details",
+      "database": "trackntoms",
+      "data": [
+        {
+          "purchase_id": "1",
+          "ingredient_id": "11",
+          "quantity": "25",
+          "unit_price": "1.25",
+          "subtotal": "31.25",
+          "product_expiration_date": "2025-08-10"
+        },
+        {
+          "purchase_id": "1",
+          "ingredient_id": "12",
+          "quantity": "15",
+          "unit_price": "5.99",
+          "subtotal": "89.85",
+          "product_expiration_date": "2025-06-10"
+        },
+        {
+          "purchase_id": "1",
+          "ingredient_id": "13",
+          "quantity": "20",
+          "unit_price": "3.50",
+          "subtotal": "70.00",
+          "product_expiration_date": "2025-04-10"
+        },
+        {
+          "purchase_id": "1",
+          "ingredient_id": "14",
+          "quantity": "3",
+          "unit_price": "4.25",
+          "subtotal": "12.75",
+          "product_expiration_date": "2025-07-10"
+        },
+        {
+          "purchase_id": "1",
+          "ingredient_id": "15",
+          "quantity": "5",
+          "unit_price": "9.99",
+          "subtotal": "49.95",
+          "product_expiration_date": "2025-08-10"
+        },
+        {
+          "purchase_id": "1",
+          "ingredient_id": "16",
+          "quantity": "2",
+          "unit_price": "12.99",
+          "subtotal": "25.98",
+          "product_expiration_date": "2025-08-10"
+        },
+        {
+          "purchase_id": "2",
+          "ingredient_id": "1",
+          "quantity": "50",
+          "unit_price": "15.99",
+          "subtotal": "799.50",
+          "product_expiration_date": "2025-08-15"
+        },
+        {
+          "purchase_id": "2",
+          "ingredient_id": "2",
+          "quantity": "30",
+          "unit_price": "12.99",
+          "subtotal": "389.70",
+          "product_expiration_date": "2025-08-15"
+        },
+        {
+          "purchase_id": "3",
+          "ingredient_id": "7",
+          "quantity": "8",
+          "unit_price": "8.99",
+          "subtotal": "71.92",
+          "product_expiration_date": "2025-08-20"
+        },
+        {
+          "purchase_id": "3",
+          "ingredient_id": "8",
+          "quantity": "8",
+          "unit_price": "8.99",
+          "subtotal": "67.43",
+          "product_expiration_date": "2025-08-20"
+        },
+        {
+          "purchase_id": "3",
+          "ingredient_id": "9",
+          "quantity": "9",
+          "unit_price": "9.50",
+          "subtotal": "80.75",
+          "product_expiration_date": "2025-08-20"
+        },
+        {
+          "purchase_id": "4",
+          "ingredient_id": "17",
+          "quantity": "500",
+          "unit_price": "0.15",
+          "subtotal": "75.00",
+          "product_expiration_date": "2026-02-25"
+        },
+        {
+          "purchase_id": "4",
+          "ingredient_id": "18",
+          "quantity": "500",
+          "unit_price": "0.18",
+          "subtotal": "90.00",
+          "product_expiration_date": "2026-02-25"
+        },
+        {
+          "purchase_id": "4",
+          "ingredient_id": "19",
+          "quantity": "1000",
+          "unit_price": "0.03",
+          "subtotal": "30.00",
+          "product_expiration_date": "2026-02-25"
+        },
+        {
+          "purchase_id": "4",
+          "ingredient_id": "20",
+          "quantity": "800",
+          "unit_price": "0.02",
+          "subtotal": "16.00",
+          "product_expiration_date": "2026-02-25"
+        },
+        {
+          "purchase_id": "5",
+          "ingredient_id": "3",
+          "quantity": "80",
+          "unit_price": "2.50",
+          "subtotal": "200.00",
+          "product_expiration_date": "2025-04-01"
+        },
+        {
+          "purchase_id": "5",
+          "ingredient_id": "4",
+          "quantity": "25",
+          "unit_price": "3.75",
+          "subtotal": "93.75",
+          "product_expiration_date": "2025-04-01"
+        },
+        {
+          "purchase_id": "5",
+          "ingredient_id": "5",
+          "quantity": "20",
+          "unit_price": "3.95",
+          "subtotal": "79.00",
+          "product_expiration_date": "2025-04-01"
+        },
+        {
+          "purchase_id": "5",
+          "ingredient_id": "10",
+          "quantity": "10",
+          "unit_price": "4.50",
+          "subtotal": "45.00",
+          "product_expiration_date": "2025-04-15"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "sales_detail",
+      "database": "trackntoms",
+      "data": [
+        {
+          "sale_detail_id": "1",
+          "sale_id": "1",
+          "item_id": "1",
+          "quantity": "1",
+          "unit_price": "3.50",
+          "subtotal": "3.50"
+        },
+        {
+          "sale_detail_id": "2",
+          "sale_id": "1",
+          "item_id": "8",
+          "quantity": "1",
+          "unit_price": "3.75",
+          "subtotal": "3.75"
+        },
+        {
+          "sale_detail_id": "3",
+          "sale_id": "1",
+          "item_id": "17",
+          "quantity": "1",
+          "unit_price": "1.00",
+          "subtotal": "1.00"
+        },
+        {
+          "sale_detail_id": "4",
+          "sale_id": "1",
+          "item_id": "19",
+          "quantity": "1",
+          "unit_price": "0.75",
+          "subtotal": "0.75"
+        },
+        {
+          "sale_detail_id": "5",
+          "sale_id": "2",
+          "item_id": "4",
+          "quantity": "2",
+          "unit_price": "4.75",
+          "subtotal": "9.50"
+        },
+        {
+          "sale_detail_id": "6",
+          "sale_id": "2",
+          "item_id": "19",
+          "quantity": "2",
+          "unit_price": "0.75",
+          "subtotal": "1.50"
+        },
+        {
+          "sale_detail_id": "7",
+          "sale_id": "2",
+          "item_id": "18",
+          "quantity": "1",
+          "unit_price": "0.75",
+          "subtotal": "0.75"
+        },
+        {
+          "sale_detail_id": "8",
+          "sale_id": "3",
+          "item_id": "6",
+          "quantity": "1",
+          "unit_price": "5.50",
+          "subtotal": "5.50"
+        },
+        {
+          "sale_detail_id": "9",
+          "sale_id": "3",
+          "item_id": "9",
+          "quantity": "1",
+          "unit_price": "4.25",
+          "subtotal": "4.25"
+        },
+        {
+          "sale_detail_id": "10",
+          "sale_id": "3",
+          "item_id": "14",
+          "quantity": "2",
+          "unit_price": "2.50",
+          "subtotal": "5.00"
+        },
+        {
+          "sale_detail_id": "11",
+          "sale_id": "4",
+          "item_id": "3",
+          "quantity": "1",
+          "unit_price": "4.50",
+          "subtotal": "4.50"
+        },
+        {
+          "sale_detail_id": "12",
+          "sale_id": "4",
+          "item_id": "7",
+          "quantity": "1",
+          "unit_price": "3.95",
+          "subtotal": "3.95"
+        },
+        {
+          "sale_detail_id": "13",
+          "sale_id": "4",
+          "item_id": "17",
+          "quantity": "1",
+          "unit_price": "1.00",
+          "subtotal": "1.00"
+        },
+        {
+          "sale_detail_id": "14",
+          "sale_id": "5",
+          "item_id": "11",
+          "quantity": "1",
+          "unit_price": "7.50",
+          "subtotal": "7.50"
+        },
+        {
+          "sale_detail_id": "15",
+          "sale_id": "5",
+          "item_id": "5",
+          "quantity": "2",
+          "unit_price": "5.25",
+          "subtotal": "10.50"
+        },
+        {
+          "sale_detail_id": "16",
+          "sale_id": "5",
+          "item_id": "20",
+          "quantity": "2",
+          "unit_price": "0.50",
+          "subtotal": "1.00"
+        },
+        {
+          "sale_detail_id": "17",
+          "sale_id": "5",
+          "item_id": "18",
+          "quantity": "2",
+          "unit_price": "0.75",
+          "subtotal": "1.50"
+        },
+        {
+          "sale_detail_id": "18",
+          "sale_id": "6",
+          "item_id": "10",
+          "quantity": "1",
+          "unit_price": "6.50",
+          "subtotal": "6.50"
+        },
+        {
+          "sale_detail_id": "19",
+          "sale_id": "6",
+          "item_id": "12",
+          "quantity": "1",
+          "unit_price": "4.25",
+          "subtotal": "4.25"
+        },
+        {
+          "sale_detail_id": "20",
+          "sale_id": "6",
+          "item_id": "14",
+          "quantity": "1",
+          "unit_price": "2.50",
+          "subtotal": "2.50"
+        },
+        {
+          "sale_detail_id": "21",
+          "sale_id": "7",
+          "item_id": "2",
+          "quantity": "2",
+          "unit_price": "4.00",
+          "subtotal": "8.00"
+        },
+        {
+          "sale_detail_id": "22",
+          "sale_id": "7",
+          "item_id": "8",
+          "quantity": "1",
+          "unit_price": "3.75",
+          "subtotal": "3.75"
+        },
+        {
+          "sale_detail_id": "23",
+          "sale_id": "8",
+          "item_id": "5",
+          "quantity": "1",
+          "unit_price": "5.25",
+          "subtotal": "5.25"
+        },
+        {
+          "sale_detail_id": "24",
+          "sale_id": "8",
+          "item_id": "11",
+          "quantity": "1",
+          "unit_price": "7.50",
+          "subtotal": "7.50"
+        },
+        {
+          "sale_detail_id": "25",
+          "sale_id": "8",
+          "item_id": "13",
+          "quantity": "1",
+          "unit_price": "3.75",
+          "subtotal": "3.75"
+        },
+        {
+          "sale_detail_id": "26",
+          "sale_id": "8",
+          "item_id": "19",
+          "quantity": "1",
+          "unit_price": "0.75",
+          "subtotal": "0.75"
+        },
+        {
+          "sale_detail_id": "27",
+          "sale_id": "8",
+          "item_id": "20",
+          "quantity": "1",
+          "unit_price": "0.50",
+          "subtotal": "0.50"
+        },
+        {
+          "sale_detail_id": "28",
+          "sale_id": "9",
+          "item_id": "1",
+          "quantity": "1",
+          "unit_price": "3.50",
+          "subtotal": "3.50"
+        },
+        {
+          "sale_detail_id": "29",
+          "sale_id": "9",
+          "item_id": "17",
+          "quantity": "1",
+          "unit_price": "1.00",
+          "subtotal": "1.00"
+        },
+        {
+          "sale_detail_id": "30",
+          "sale_id": "9",
+          "item_id": "9",
+          "quantity": "1",
+          "unit_price": "4.25",
+          "subtotal": "4.25"
+        },
+        {
+          "sale_detail_id": "31",
+          "sale_id": "10",
+          "item_id": "4",
+          "quantity": "2",
+          "unit_price": "4.75",
+          "subtotal": "9.50"
+        },
+        {
+          "sale_detail_id": "32",
+          "sale_id": "10",
+          "item_id": "7",
+          "quantity": "1",
+          "unit_price": "3.95",
+          "subtotal": "3.95"
+        },
+        {
+          "sale_detail_id": "33",
+          "sale_id": "10",
+          "item_id": "18",
+          "quantity": "2",
+          "unit_price": "0.75",
+          "subtotal": "1.50"
+        },
+        {
+          "sale_detail_id": "34",
+          "sale_id": "10",
+          "item_id": "19",
+          "quantity": "2",
+          "unit_price": "0.75",
+          "subtotal": "1.50"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "sales_header",
+      "database": "trackntoms",
+      "data": [
+        {
+          "sale_id": "1",
+          "cashier_id": "1",
+          "sale_date": "2025-03-10 08:15:23",
+          "manager_id": null,
+          "total_amount": "8.50",
+          "payment_method": "Credit Card"
+        },
+        {
+          "sale_id": "2",
+          "cashier_id": "2",
+          "sale_date": "2025-03-10 08:45:12",
+          "manager_id": null,
+          "total_amount": "12.70",
+          "payment_method": "Cash"
+        },
+        {
+          "sale_id": "3",
+          "cashier_id": "3",
+          "sale_date": "2025-03-10 09:30:45",
+          "manager_id": null,
+          "total_amount": "15.25",
+          "payment_method": "Credit Card"
+        },
+        {
+          "sale_id": "4",
+          "cashier_id": "4",
+          "sale_date": "2025-03-10 10:20:18",
+          "manager_id": null,
+          "total_amount": "9.75",
+          "payment_method": "Mobile Payment"
+        },
+        {
+          "sale_id": "5",
+          "cashier_id": "5",
+          "sale_date": "2025-03-10 11:05:37",
+          "manager_id": null,
+          "total_amount": "21.45",
+          "payment_method": "Credit Card"
+        },
+        {
+          "sale_id": "6",
+          "cashier_id": "1",
+          "sale_date": "2025-03-10 12:15:50",
+          "manager_id": null,
+          "total_amount": "14.00",
+          "payment_method": "Cash"
+        },
+        {
+          "sale_id": "7",
+          "cashier_id": "2",
+          "sale_date": "2025-03-10 13:25:33",
+          "manager_id": null,
+          "total_amount": "11.50",
+          "payment_method": "Mobile Payment"
+        },
+        {
+          "sale_id": "8",
+          "cashier_id": "3",
+          "sale_date": "2025-03-10 14:10:22",
+          "manager_id": null,
+          "total_amount": "18.30",
+          "payment_method": "Credit Card"
+        },
+        {
+          "sale_id": "9",
+          "cashier_id": "4",
+          "sale_date": "2025-03-10 15:40:05",
+          "manager_id": null,
+          "total_amount": "7.25",
+          "payment_method": "Cash"
+        },
+        {
+          "sale_id": "10",
+          "cashier_id": "5",
+          "sale_date": "2025-03-10 16:55:47",
+          "manager_id": null,
+          "total_amount": "16.75",
+          "payment_method": "Credit Card"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "staff",
+      "database": "trackntoms",
+      "data": [
+        {
+          "staff_id": "1",
+          "first_name": "John",
+          "last_name": "Doe",
+          "email": "john.doe@tomscoffee.com",
+          "phone_number": "555-123-4567",
+          "role": "Manager",
+          "password": "$2a$12$1JE5X2HU8LxSsGg1W9.VEu1A.5OuIL1DfP3kj4xUBCVz.6jYP6wlO",
+          "profile_image": "john_profile.jpg"
+        },
+        {
+          "staff_id": "2",
+          "first_name": "Jane",
+          "last_name": "Smith",
+          "email": "jane.smith@tomscoffee.com",
+          "phone_number": "555-234-5678",
+          "role": "Manager",
+          "password": "$2a$12$zUv2Px01QF2VEeP9ZUfPJ.8QUAaNOkUdRtKeBm/koOXI2BD0W3xIS",
+          "profile_image": "jane_profile.jpg"
+        },
+        {
+          "staff_id": "3",
+          "first_name": "Carlos",
+          "last_name": "Rodriguez",
+          "email": "carlos.rodriguez@tomscoffee.com",
+          "phone_number": "555-345-6789",
+          "role": "Cashier",
+          "password": "$2a$12$M1hyvylHYWcHrX5B5OqoHu3aBP1C6UeWJi0BL.MvUkKmenJlYlvgm",
+          "profile_image": "carlos_profile.jpg"
+        },
+        {
+          "staff_id": "4",
+          "first_name": "Maria",
+          "last_name": "Garcia",
+          "email": "maria.garcia@tomscoffee.com",
+          "phone_number": "555-456-7890",
+          "role": "Cashier",
+          "password": "$2a$12$P9LbGT0NbUE1AKQO.mOv7OW0UZTV1mYZbUsiA9WA.U65YaOkUfGpK",
+          "profile_image": "maria_profile.jpg"
+        },
+        {
+          "staff_id": "5",
+          "first_name": "Alex",
+          "last_name": "Johnson",
+          "email": "alex.johnson@tomscoffee.com",
+          "phone_number": "555-567-8901",
+          "role": "Cashier",
+          "password": "$2a$12$s3qwZ8K5C7JwC9L02Tct2O/q9K9vyuXQ1z0O0bKZqNTrBsysD8uJi",
+          "profile_image": "alex_profile.jpg"
+        },
+        {
+          "staff_id": "6",
+          "first_name": "Sarah",
+          "last_name": "Williams",
+          "email": "sarah.williams@tomscoffee.com",
+          "phone_number": "555-678-9012",
+          "role": "Manager",
+          "password": "$2a$12$ySw.zvUiU0DF.ohnT/c0LeQoOdLm1vJvSdJK7YFBh2TGYTbN.MVTC",
+          "profile_image": "sarah_profile.jpg"
+        },
+        {
+          "staff_id": "7",
+          "first_name": "Michael",
+          "last_name": "Brown",
+          "email": "michael.brown@tomscoffee.com",
+          "phone_number": "555-789-0123",
+          "role": "Cashier",
+          "password": "$2a$12$1j3GatHK80LRo5bNVTFAyeqZsw2eMpLArnSFgARgnoNBZoAT9eB0a",
+          "profile_image": "michael_profile.jpg"
+        },
+        {
+          "staff_id": "8",
+          "first_name": "Emily",
+          "last_name": "Davis",
+          "email": "emily.davis@tomscoffee.com",
+          "phone_number": "555-890-1234",
+          "role": "Cashier",
+          "password": "$2a$12$ZeL.C0ZcOGBYXgHLvyQ0veOXjqtWqkdRfMChvULYyeXMJYTL.sOEa",
+          "profile_image": "emily_profile.jpg"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "supplier",
+      "database": "trackntoms",
+      "data": [
+        {
+          "supplier_id": "1",
+          "supplier_name": "Coffee Bean Importers",
+          "contact_person": "Robert Chen",
+          "supplier_contact": "555-111-2222",
+          "supplier_email": "robert@coffeebeanimporters.com",
+          "address": "123 Roast Ave",
+          "city": "Seattle",
+          "state": "WA",
+          "postal_code": "98101",
+          "country": "USA",
+          "website": "www.coffeebeanimporters.com",
+          "payment_terms": "Net 30",
+          "notes": "Premium coffee bean supplier",
+          "is_active": "1",
+          "logo": "cbi_logo.png"
+        },
+        {
+          "supplier_id": "2",
+          "supplier_name": "Sweet Delights Bakery",
+          "contact_person": "Lisa Wong",
+          "supplier_contact": "555-222-3333",
+          "supplier_email": "lisa@sweetdelights.com",
+          "address": "456 Sugar St",
+          "city": "Portland",
+          "state": "OR",
+          "postal_code": "97201",
+          "country": "USA",
+          "website": "www.sweetdelightsbakery.com",
+          "payment_terms": "Net 15",
+          "notes": "Artisanal pastry supplier",
+          "is_active": "1",
+          "logo": "sdb_logo.png"
+        },
+        {
+          "supplier_id": "3",
+          "supplier_name": "Dairy Fresh Co.",
+          "contact_person": "James Miller",
+          "supplier_contact": "555-333-4444",
+          "supplier_email": "james@dairyfresh.com",
+          "address": "789 Milk Way",
+          "city": "San Francisco",
+          "state": "CA",
+          "postal_code": "94110",
+          "country": "USA",
+          "website": "www.dairyfreshco.com",
+          "payment_terms": "Net 7",
+          "notes": "Organic dairy products",
+          "is_active": "1",
+          "logo": "dfc_logo.png"
+        },
+        {
+          "supplier_id": "4",
+          "supplier_name": "Coffee Equipment Pro",
+          "contact_person": "Samantha Jones",
+          "supplier_contact": "555-444-5555",
+          "supplier_email": "samantha@coffeeequipmentpro.com",
+          "address": "101 Brewer Blvd",
+          "city": "Chicago",
+          "state": "IL",
+          "postal_code": "60601",
+          "country": "USA",
+          "website": "www.coffeeequipmentpro.com",
+          "payment_terms": "Net 45",
+          "notes": "Equipment and maintenance",
+          "is_active": "1",
+          "logo": "cep_logo.png"
+        },
+        {
+          "supplier_id": "5",
+          "supplier_name": "Eco Packaging Solutions",
+          "contact_person": "David Kim",
+          "supplier_contact": "555-555-6666",
+          "supplier_email": "david@ecopackaging.com",
+          "address": "202 Green St",
+          "city": "Austin",
+          "state": "TX",
+          "postal_code": "78701",
+          "country": "USA",
+          "website": "www.ecopackagingsolutions.com",
+          "payment_terms": "Net 30",
+          "notes": "Sustainable packaging supplier",
+          "is_active": "1",
+          "logo": "eps_logo.png"
+        }
+      ]
+    }
+  ]

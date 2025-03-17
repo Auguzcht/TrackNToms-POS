@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
+import api from '../services/api';
 
 export const useInventory = () => {
   const [ingredients, setIngredients] = useState([]);
@@ -7,148 +8,18 @@ export const useInventory = () => {
   const [pullouts, setPullouts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [recipeIngredients, setRecipeIngredients] = useState([]);
   
-  // Mock data for ingredients
-  const mockIngredients = [
-    {
-      ingredient_id: 1,
-      name: 'Coffee Beans - Arabica',
-      description: 'Premium arabica coffee beans',
-      quantity: 25.5,
-      unit: 'kg',
-      cost_per_unit: 15.99,
-      minimum_stock_level: 10,
-      maximum_stock_level: 50,
-      last_restock_date: '2023-11-10',
-      image: null
-    },
-    {
-      ingredient_id: 2,
-      name: 'Milk',
-      description: 'Fresh whole milk',
-      quantity: 45,
-      unit: 'L',
-      cost_per_unit: 2.49,
-      minimum_stock_level: 20,
-      maximum_stock_level: 60,
-      last_restock_date: '2023-11-15',
-      image: null
-    },
-    {
-      ingredient_id: 3,
-      name: 'Chocolate Syrup',
-      description: 'Premium chocolate flavoring syrup',
-      quantity: 12,
-      unit: 'bottles',
-      cost_per_unit: 8.99,
-      minimum_stock_level: 5,
-      maximum_stock_level: 20,
-      last_restock_date: '2023-11-05',
-      image: null
-    },
-    {
-      ingredient_id: 4,
-      name: 'Vanilla Extract',
-      description: 'Pure vanilla extract',
-      quantity: 8,
-      unit: 'bottles',
-      cost_per_unit: 12.50,
-      minimum_stock_level: 3,
-      maximum_stock_level: 15,
-      last_restock_date: '2023-11-08',
-      image: null
-    }
-  ];
-  
-  // Mock data for items (products)
-  const mockItems = [
-    {
-      item_id: 1,
-      item_name: 'Americano',
-      description: 'Classic espresso with hot water',
-      category_id: 1,
-      price: 3.99,
-      cost: 1.50,
-      status: 'active',
-      image: null
-    },
-    {
-      item_id: 2,
-      item_name: 'Cappuccino',
-      description: 'Espresso with steamed milk and foam',
-      category_id: 1,
-      price: 4.99,
-      cost: 2.00,
-      status: 'active',
-      image: null
-    },
-    {
-      item_id: 3,
-      item_name: 'Chocolate Cake',
-      description: 'Rich chocolate cake slice',
-      category_id: 2,
-      price: 5.99,
-      cost: 2.50,
-      status: 'active',
-      image: null
-    }
-  ];
-
-  // Mock data for pullouts
-  const mockPullouts = [
-    {
-      pullout_id: 1,
-      ingredient_id: 1,
-      quantity: 2.5,
-      unit: 'kg',
-      reason: 'Expired beans',
-      date_of_pullout: '2023-11-12',
-      staff_id: 1,
-      staffName: 'John Doe',
-      manager_id: 2,
-      managerName: 'Jane Smith',
-      status: 'approved',
-      ingredientName: 'Coffee Beans - Arabica'
-    },
-    {
-      pullout_id: 2,
-      ingredient_id: 2,
-      quantity: 5,
-      unit: 'L',
-      reason: 'Spoiled milk',
-      date_of_pullout: '2023-11-14',
-      staff_id: 1,
-      staffName: 'John Doe',
-      manager_id: null,
-      managerName: null,
-      status: 'pending',
-      ingredientName: 'Milk'
-    },
-    {
-      pullout_id: 3,
-      ingredient_id: 3,
-      quantity: 1,
-      unit: 'bottles',
-      reason: 'Quality check failed',
-      date_of_pullout: '2023-11-16',
-      staff_id: 3,
-      staffName: 'Alice Johnson',
-      manager_id: 2,
-      managerName: 'Jane Smith',
-      status: 'approved',
-      ingredientName: 'Chocolate Syrup'
-    }
-  ];
-
   // Fetch ingredients
   const fetchIngredients = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setIngredients(mockIngredients);
-      return mockIngredients;
+      // Remove /api from path since it's already in the base URL
+      const response = await api.get('/inventory/ingredients');
+      console.log('Ingredients response:', response.data);
+      setIngredients(response.data);
+      return response.data;
     } catch (err) {
       console.error('Error fetching ingredients:', err);
       setError('Failed to fetch ingredients');
@@ -163,10 +34,11 @@ export const useInventory = () => {
     setLoading(true);
     setError(null);
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setItems(mockItems);
-      return mockItems;
+      // Remove /api from path since it's already in the base URL
+      const response = await api.get('/inventory/items');
+      console.log('Items response:', response.data);
+      setItems(response.data);
+      return response.data;
     } catch (err) {
       console.error('Error fetching items:', err);
       setError('Failed to fetch items');
@@ -181,10 +53,10 @@ export const useInventory = () => {
     setLoading(true);
     setError(null);
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setPullouts(mockPullouts);
-      return mockPullouts;
+      // Remove /api from path since it's already in the base URL
+      const response = await api.get('/inventory/pullouts');
+      setPullouts(response.data);
+      return response.data;
     } catch (err) {
       console.error('Error fetching pullouts:', err);
       setError('Failed to fetch pullouts');
@@ -200,8 +72,6 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // In a real app, you'd have API calls here
-      // Fetch everything in parallel
       await Promise.all([
         fetchIngredients(),
         fetchItems(),
@@ -224,12 +94,8 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Mock API call
-      const newIngredient = {
-        ingredient_id: Date.now(),
-        ...ingredientData,
-        last_restock_date: new Date().toISOString().split('T')[0]
-      };
+      const response = await api.post('/inventory/ingredients', ingredientData);
+      const newIngredient = response.data;
       
       setIngredients(prev => [...prev, newIngredient]);
       toast.success(`Ingredient ${ingredientData.name} added successfully!`);
@@ -250,8 +116,8 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Mock API call
-      const updatedIngredient = { ingredient_id: id, ...ingredientData };
+      const response = await api.put(`/inventory/ingredients/${id}`, ingredientData);
+      const updatedIngredient = response.data;
       
       setIngredients(prev => 
         prev.map(ingredient => ingredient.ingredient_id === id ? updatedIngredient : ingredient)
@@ -275,7 +141,8 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Mock API call
+      await api.delete(`/inventory/ingredients/${id}`);
+      
       setIngredients(prev => 
         prev.filter(ingredient => ingredient.ingredient_id !== id)
       );
@@ -298,11 +165,8 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Mock API call
-      const newItem = {
-        item_id: Date.now(),
-        ...itemData
-      };
+      const response = await api.post('/inventory/items', itemData);
+      const newItem = response.data;
       
       setItems(prev => [...prev, newItem]);
       toast.success(`Item ${itemData.item_name} added successfully!`);
@@ -323,8 +187,8 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Mock API call
-      const updatedItem = { item_id: id, ...itemData };
+      const response = await api.put(`/inventory/items/${id}`, itemData);
+      const updatedItem = response.data;
       
       setItems(prev => 
         prev.map(item => item.item_id === id ? updatedItem : item)
@@ -348,7 +212,8 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Mock API call
+      await api.delete(`/inventory/items/${id}`);
+      
       setItems(prev => 
         prev.filter(item => item.item_id !== id)
       );
@@ -371,31 +236,14 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Get ingredient name
-      const ingredient = ingredients.find(ing => ing.ingredient_id === pulloutData.ingredient_id);
-      
-      // Mock API call
-      const newPullout = {
-        pullout_id: Date.now(),
-        ...pulloutData,
-        date_of_pullout: new Date().toISOString().split('T')[0],
-        status: pulloutData.manager_id ? 'approved' : 'pending',
-        ingredientName: ingredient ? ingredient.name : 'Unknown Ingredient'
-      };
+      const response = await api.post('/inventory/pullouts', pulloutData);
+      const newPullout = response.data;
       
       setPullouts(prev => [...prev, newPullout]);
       
-      // Update ingredient quantity
-      if (ingredient) {
-        const updatedIngredient = {
-          ...ingredient,
-          quantity: Math.max(0, ingredient.quantity - pulloutData.quantity)
-        };
-        
-        setIngredients(prev => 
-          prev.map(ing => ing.ingredient_id === pulloutData.ingredient_id ? updatedIngredient : ing)
-        );
-      }
+      // Backend should handle ingredient quantity updates
+      // Refresh ingredients to get updated quantities
+      await fetchIngredients();
       
       toast.success('Pullout record created successfully!');
       return newPullout;
@@ -407,7 +255,7 @@ export const useInventory = () => {
     } finally {
       setLoading(false);
     }
-  }, [ingredients]);
+  }, [fetchIngredients]);
 
   // Update a pullout record
   const updatePullout = useCallback(async (id, pulloutData) => {
@@ -415,39 +263,13 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Find original pullout to calculate quantity difference
-      const originalPullout = pullouts.find(p => p.pullout_id === id);
-      if (!originalPullout) {
-        throw new Error('Pullout record not found');
-      }
-      
-      // Get ingredient
-      const ingredient = ingredients.find(ing => ing.ingredient_id === pulloutData.ingredient_id);
-      
-      // Calculate quantity difference
-      const quantityDifference = pulloutData.quantity - originalPullout.quantity;
-      
-      // Mock API call
-      const updatedPullout = {
-        pullout_id: id,
-        ...pulloutData,
-        status: pulloutData.manager_id ? 'approved' : 'pending',
-        ingredientName: ingredient ? ingredient.name : originalPullout.ingredientName
-      };
+      const response = await api.put(`/inventory/pullouts/${id}`, pulloutData);
+      const updatedPullout = response.data;
       
       setPullouts(prev => prev.map(p => p.pullout_id === id ? updatedPullout : p));
       
-      // Update ingredient quantity if there's a difference
-      if (ingredient && quantityDifference !== 0) {
-        const updatedIngredient = {
-          ...ingredient,
-          quantity: Math.max(0, ingredient.quantity - quantityDifference)
-        };
-        
-        setIngredients(prev => 
-          prev.map(ing => ing.ingredient_id === pulloutData.ingredient_id ? updatedIngredient : ing)
-        );
-      }
+      // Refresh ingredients to get updated quantities
+      await fetchIngredients();
       
       toast.success('Pullout record updated successfully!');
       return updatedPullout;
@@ -459,7 +281,7 @@ export const useInventory = () => {
     } finally {
       setLoading(false);
     }
-  }, [ingredients, pullouts]);
+  }, [fetchIngredients]);
 
   // Delete a pullout record
   const deletePullout = useCallback(async (id) => {
@@ -467,29 +289,12 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Find the pullout to be deleted
-      const pulloutToDelete = pullouts.find(p => p.pullout_id === id);
-      if (!pulloutToDelete) {
-        throw new Error('Pullout record not found');
-      }
+      await api.delete(`/inventory/pullouts/${id}`);
       
-      // Mock API call
       setPullouts(prev => prev.filter(p => p.pullout_id !== id));
       
-      // If pullout was approved, restore the ingredient quantity
-      if (pulloutToDelete.status === 'approved') {
-        const ingredient = ingredients.find(ing => ing.ingredient_id === pulloutToDelete.ingredient_id);
-        if (ingredient) {
-          const updatedIngredient = {
-            ...ingredient,
-            quantity: ingredient.quantity + pulloutToDelete.quantity
-          };
-          
-          setIngredients(prev => 
-            prev.map(ing => ing.ingredient_id === pulloutToDelete.ingredient_id ? updatedIngredient : ing)
-          );
-        }
-      }
+      // Refresh ingredients to get updated quantities
+      await fetchIngredients();
       
       toast.success('Pullout record deleted successfully!');
       return true;
@@ -501,7 +306,7 @@ export const useInventory = () => {
     } finally {
       setLoading(false);
     }
-  }, [ingredients, pullouts]);
+  }, [fetchIngredients]);
 
   // Approve a pullout record
   const approvePullout = useCallback(async (id, managerId, managerName) => {
@@ -509,24 +314,19 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Find the pullout to be approved
-      const pullout = pullouts.find(p => p.pullout_id === id);
-      if (!pullout) {
-        throw new Error('Pullout record not found');
-      }
+      const response = await api.patch(`/inventory/pullouts/${id}/approve`, {
+        manager_id: managerId
+      });
       
-      // Mock API call
-      const updatedPullout = {
-        ...pullout,
-        status: 'approved',
-        manager_id: managerId,
-        managerName: managerName
-      };
+      const approvedPullout = response.data;
       
-      setPullouts(prev => prev.map(p => p.pullout_id === id ? updatedPullout : p));
+      setPullouts(prev => prev.map(p => p.pullout_id === id ? approvedPullout : p));
+      
+      // Refresh ingredients since approval might affect quantities
+      await fetchIngredients();
       
       toast.success('Pullout record approved successfully!');
-      return updatedPullout;
+      return approvedPullout;
     } catch (err) {
       console.error(`Error approving pullout with ID ${id}:`, err);
       setError(`Failed to approve pullout with ID ${id}`);
@@ -535,7 +335,7 @@ export const useInventory = () => {
     } finally {
       setLoading(false);
     }
-  }, [pullouts]);
+  }, [fetchIngredients]);
 
   // Reject a pullout record
   const rejectPullout = useCallback(async (id, managerId, managerName, reason) => {
@@ -543,38 +343,17 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Find the pullout to be rejected
-      const pullout = pullouts.find(p => p.pullout_id === id);
-      if (!pullout) {
-        throw new Error('Pullout record not found');
-      }
-      
-      // Mock API call
-      const updatedPullout = {
-        ...pullout,
-        status: 'rejected',
+      const response = await api.patch(`/inventory/pullouts/${id}/reject`, {
         manager_id: managerId,
-        managerName: managerName,
-        rejectionReason: reason
-      };
+        reason: reason
+      });
       
-      setPullouts(prev => prev.map(p => p.pullout_id === id ? updatedPullout : p));
+      const rejectedPullout = response.data;
       
-      // Restore the ingredient quantity since the pullout was rejected
-      const ingredient = ingredients.find(ing => ing.ingredient_id === pullout.ingredient_id);
-      if (ingredient && pullout.status === 'approved') {
-        const updatedIngredient = {
-          ...ingredient,
-          quantity: ingredient.quantity + pullout.quantity
-        };
-        
-        setIngredients(prev => 
-          prev.map(ing => ing.ingredient_id === pullout.ingredient_id ? updatedIngredient : ing)
-        );
-      }
+      setPullouts(prev => prev.map(p => p.pullout_id === id ? rejectedPullout : p));
       
       toast.success('Pullout record rejected successfully!');
-      return updatedPullout;
+      return rejectedPullout;
     } catch (err) {
       console.error(`Error rejecting pullout with ID ${id}:`, err);
       setError(`Failed to reject pullout with ID ${id}`);
@@ -583,28 +362,21 @@ export const useInventory = () => {
     } finally {
       setLoading(false);
     }
-  }, [ingredients, pullouts]);
+  }, []);
 
-  // Add the getPullout function to the useInventory hook
+  // Get a specific pullout record
   const getPullout = useCallback(async (id) => {
     setLoading(true);
     setError(null);
     
     try {
-      // Find the pullout in the existing state first
+      // First check if we already have it in state
       let pullout = pullouts.find(p => p.pullout_id === parseInt(id));
       
+      // If not, fetch it from the API
       if (!pullout) {
-        // If not in state (perhaps page was refreshed), simulate API fetch
-        // In a real app, you'd make an API call here
-        await new Promise(resolve => setTimeout(resolve, 300)); // Simulate network delay
-        
-        // Use mock data if no actual data exists
-        pullout = mockPullouts.find(p => p.pullout_id === parseInt(id));
-        
-        if (!pullout) {
-          throw new Error(`Pullout with ID ${id} not found`);
-        }
+        const response = await api.get(`/inventory/pullouts/${id}`);
+        pullout = response.data;
       }
       
       return pullout;
@@ -617,6 +389,83 @@ export const useInventory = () => {
     }
   }, [pullouts]);
 
+  // Fetch item ingredients
+  const fetchItemIngredients = useCallback(async (itemId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get(`/inventory/items/${itemId}/ingredients`);
+      return response.data;
+    } catch (err) {
+      console.error('Error fetching item ingredients:', err);
+      setError('Failed to fetch item ingredients');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Update item ingredients
+  const updateItemIngredients = useCallback(async (itemId, ingredients) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.post(`/inventory/items/${itemId}/ingredients`, {
+        ingredients
+      });
+      return response.data;
+    } catch (err) {
+      console.error('Error updating item ingredients:', err);
+      setError('Failed to update item ingredients');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Check ingredient availability
+  const checkIngredientAvailability = useCallback(async (itemId, quantity = 1) => {
+    try {
+      const response = await api.get(`/inventory/items/${itemId}/ingredients/availability`, {
+        params: { quantity }
+      });
+      return response.data;
+    } catch (err) {
+      console.error('Error checking ingredient availability:', err);
+      throw err;
+    }
+  }, []);
+
+  // Deduct ingredients for sale
+  const deductIngredientsForSale = useCallback(async (items) => {
+    try {
+      const response = await api.post('/inventory/deduct-ingredients', { items });
+      
+      // Update local ingredient quantities
+      setIngredients(prev => {
+        const newIngredients = [...prev];
+        response.data.deductions.forEach(deduction => {
+          const ingredient = newIngredients.find(i => i.ingredient_id === deduction.ingredient_id);
+          if (ingredient) {
+            ingredient.quantity -= deduction.quantity;
+            
+            // Check if we need to show low stock warning
+            if (ingredient.quantity <= ingredient.minimum_quantity) {
+              toast.warning(`Low stock alert: ${ingredient.name}`);
+            }
+          }
+        });
+        return newIngredients;
+      });
+
+      return response.data;
+    } catch (err) {
+      console.error('Error deducting ingredients:', err);
+      toast.error('Failed to update inventory');
+      throw err;
+    }
+  }, []);
+
   return {
     ingredients,
     items,
@@ -627,7 +476,7 @@ export const useInventory = () => {
     fetchIngredients,
     fetchItems,
     fetchPullouts,
-    getPullout,        // Add this line
+    getPullout,
     addIngredient,
     updateIngredient,
     deleteIngredient,
@@ -638,7 +487,12 @@ export const useInventory = () => {
     updatePullout,
     deletePullout,
     approvePullout,
-    rejectPullout
+    rejectPullout,
+    fetchItemIngredients,
+    updateItemIngredients,
+    checkIngredientAvailability,
+    deductIngredientsForSale,
+    recipeIngredients
   };
 };
 

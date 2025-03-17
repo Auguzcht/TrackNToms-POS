@@ -70,34 +70,43 @@ const SupplierList = ({
     // Apply filters
     let result = [...suppliers];
     
-    // Text search filter - updated to use supplier_name instead of name
+    // Text search filter - updated to match database field names
     if (searchTerm) {
       const lowercasedSearch = searchTerm.toLowerCase();
       result = result.filter(supplier => 
         supplier.supplier_name?.toLowerCase().includes(lowercasedSearch) || 
-        supplier.contactPerson?.toLowerCase().includes(lowercasedSearch) ||
+        supplier.contact_person?.toLowerCase().includes(lowercasedSearch) ||
         supplier.supplier_email?.toLowerCase().includes(lowercasedSearch) ||
-        supplier.phone?.toLowerCase().includes(lowercasedSearch)
+        supplier.supplier_contact?.toLowerCase().includes(lowercasedSearch)
       );
     }
     
-    // Status filter
+    // Status filter - updated to use is_active instead of isActive
     if (statusFilter !== 'all') {
       const isActive = statusFilter === 'active';
       result = result.filter(supplier => 
-        supplier.isActive === isActive || 
+        (supplier.is_active === 1) === isActive || 
         supplier.status === (isActive ? 'Active' : 'Inactive')
       );
     }
 
-    // Apply sorting - updated keys to match actual supplier properties
+    // Apply sorting - updated to match database field names
     if (sortConfig.key) {
       result.sort((a, b) => {
+        // Map frontend keys to database field names
+        const keyMap = {
+          'contactPerson': 'contact_person',
+          'isActive': 'is_active'
+        };
+        
+        // Use mapped key if available
+        const dbKey = keyMap[sortConfig.key] || sortConfig.key;
+        
         // Helper function to get property value safely
         const getValue = (obj, key) => obj[key] === undefined ? '' : obj[key];
         
-        let aValue = getValue(a, sortConfig.key);
-        let bValue = getValue(b, sortConfig.key); 
+        let aValue = getValue(a, dbKey);
+        let bValue = getValue(b, dbKey); 
         
         // Convert to strings for text comparison
         if (typeof aValue === 'string') {
@@ -108,14 +117,10 @@ const SupplierList = ({
           bValue = bValue.toLowerCase();
         }
         
-        // Handle special case for isActive
-        if (sortConfig.key === 'isActive') {
-          if (a.isActive === undefined && a.status !== undefined) {
-            aValue = a.status === 'Active';
-          }
-          if (b.isActive === undefined && b.status !== undefined) {
-            bValue = b.status === 'Active';
-          }
+        // Handle special case for is_active (numeric to boolean conversion)
+        if (dbKey === 'is_active') {
+          aValue = aValue === 1 || aValue === '1' || aValue === true;
+          bValue = bValue === 1 || bValue === '1' || bValue === true;
         }
 
         if (aValue < bValue) {
@@ -318,8 +323,8 @@ const SupplierList = ({
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                        {supplier.contactPerson || '-'}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-600 font-medium">
+                        {supplier.contact_person || '-'}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-600 dark:text-gray-600">
@@ -344,12 +349,12 @@ const SupplierList = ({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          (supplier.isActive || supplier.status === 'Active')
+                          (supplier.is_active === 1 || supplier.is_active === true || supplier.status === 'Active')
                             ? 'bg-[#003B25]/10 border border-[#003B25]/20 text-[#003B25]' 
                             : 'bg-[#571C1F]/10 border border-[#571C1F]/20 text-[#571C1F]'
                         }`}>
-                          <span className={`w-1.5 h-1.5 ${(supplier.isActive || supplier.status === 'Active') ? 'bg-[#003B25]' : 'bg-[#571C1F]'} rounded-full mr-1`}></span>
-                          {(supplier.isActive || supplier.status === 'Active') ? 'Active' : 'Inactive'}
+                          <span className={`w-1.5 h-1.5 ${(supplier.is_active === 1 || supplier.is_active === true || supplier.status === 'Active') ? 'bg-[#003B25]' : 'bg-[#571C1F]'} rounded-full mr-1`}></span>
+                          {(supplier.is_active === 1 || supplier.is_active === true || supplier.status === 'Active') ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -474,12 +479,12 @@ const SupplierList = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 bg-[#FFF6F2]/50 p-4 rounded-md">
                 <div>
                   <p className="text-sm font-medium text-[#571C1F]/70">Contact Person</p>
-                  <p className="mt-1 text-gray-900 dark:text-white">{selectedSupplier.contactPerson || '—'}</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{selectedSupplier.contact_person || '—'}</p>
                 </div>
-                
+
                 <div>
                   <p className="text-sm font-medium text-[#571C1F]/70">Payment Terms</p>
-                  <p className="mt-1 text-gray-900 dark:text-white">{selectedSupplier.paymentTerms || '—'}</p>
+                  <p className="mt-1 text-gray-900 dark:text-white">{selectedSupplier.payment_terms || '—'}</p>
                 </div>
                 
                 <div>

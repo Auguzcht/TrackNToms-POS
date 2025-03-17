@@ -109,7 +109,7 @@ const ConsignmentList = ({
 
   // Apply filters and sorting to consignments list
   useEffect(() => {
-    if (!consignments || consignments.length === 0) {
+    if (!consignments?.length) {
       setFilteredConsignments([]);
       return;
     }
@@ -120,19 +120,14 @@ const ConsignmentList = ({
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       result = result.filter(item => 
-        (item.invoiceNumber && item.invoiceNumber.toLowerCase().includes(searchLower)) ||
-        (item.referenceNumber && item.referenceNumber.toLowerCase().includes(searchLower))
+        (item.invoice_number?.toLowerCase().includes(searchLower)) ||
+        (item.reference_number?.toLowerCase().includes(searchLower))
       );
     }
     
     // Apply supplier filter
     if (filters.supplierId) {
-      result = result.filter(item => {
-        const supplierId = typeof item.supplierId === 'number' ? 
-                          item.supplierId.toString() : 
-                          item.supplierId;
-        return supplierId === filters.supplierId;
-      });
+      result = result.filter(item => item.supplier_id.toString() === filters.supplierId);
     }
     
     // Apply date range filter
@@ -140,47 +135,30 @@ const ConsignmentList = ({
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
-      switch (filters.dateRange) {
-        case 'today':
-          result = result.filter(item => {
-            const itemDate = new Date(item.receivedDate);
+      result = result.filter(item => {
+        const itemDate = new Date(item.date);
+        switch (filters.dateRange) {
+          case 'today':
             return itemDate >= today;
-          });
-          break;
-        case 'thisWeek':
-          const firstDayOfWeek = new Date(today);
-          firstDayOfWeek.setDate(today.getDate() - today.getDay());
-          result = result.filter(item => {
-            const itemDate = new Date(item.receivedDate);
+          case 'thisWeek':
+            const firstDayOfWeek = new Date(today);
+            firstDayOfWeek.setDate(today.getDate() - today.getDay());
             return itemDate >= firstDayOfWeek;
-          });
-          break;
-        case 'thisMonth':
-          const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-          result = result.filter(item => {
-            const itemDate = new Date(item.receivedDate);
+          case 'thisMonth':
+            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
             return itemDate >= firstDayOfMonth;
-          });
-          break;
-        case 'last30Days':
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(today.getDate() - 30);
-          result = result.filter(item => {
-            const itemDate = new Date(item.receivedDate);
+          case 'last30Days':
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
             return itemDate >= thirtyDaysAgo;
-          });
-          break;
-        case 'last90Days':
-          const ninetyDaysAgo = new Date();
-          ninetyDaysAgo.setDate(today.getDate() - 90);
-          result = result.filter(item => {
-            const itemDate = new Date(item.receivedDate);
+          case 'last90Days':
+            const ninetyDaysAgo = new Date(today);
+            ninetyDaysAgo.setDate(today.getDate() - 90);
             return itemDate >= ninetyDaysAgo;
-          });
-          break;
-        default:
-          break;
-      }
+          default:
+            return true;
+        }
+      });
     }
     
     // Apply sorting
@@ -190,7 +168,7 @@ const ConsignmentList = ({
         let bValue = b[sortConfig.key];
         
         // Handle dates
-        if (sortConfig.key === 'receivedDate' || sortConfig.key === 'dueDate') {
+        if (sortConfig.key === 'date') {
           aValue = new Date(aValue || 0).getTime();
           bValue = new Date(bValue || 0).getTime();
         }
@@ -230,10 +208,11 @@ const ConsignmentList = ({
     }
   };
 
-  // Handle edit consignment button click - always use external modal via onEdit
+  // Update the handleEditConsignment function
   const handleEditConsignment = (consignment) => {
     if (onEdit) {
-      onEdit(consignment.id);
+      // Use consignment_id instead of id
+      onEdit(consignment.consignment_id);
     }
   };
 
@@ -286,16 +265,13 @@ const ConsignmentList = ({
 
   // Calculate total items in a consignment
   const calculateTotalItems = (consignment) => {
-    if (!consignment || !consignment.items) return 0;
+    if (!consignment?.items) return 0;
     return consignment.items.reduce((total, item) => total + Number(item.quantity || 0), 0);
   };
 
   // Calculate total value of a consignment
   const calculateTotalValue = (consignment) => {
-    if (!consignment || !consignment.items) return 0;
-    return consignment.items.reduce((total, item) => {
-      return total + (Number(item.quantity || 0) * Number(item.unitPrice || 0));
-    }, 0);
+    return Number(consignment.total || 0);
   };
 
   // Format date with fallback
@@ -434,7 +410,7 @@ const ConsignmentList = ({
                 {filteredConsignments.length > 0 ? (
                   filteredConsignments.map((consignment, index) => (
                     <motion.tr 
-                      key={consignment.id}
+                      key={consignment.consignment_id} // Update key to use consignment_id
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -444,7 +420,7 @@ const ConsignmentList = ({
                     >
                       {/* Table rows remain similar with updated styling */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#571C1F]">
-                        {formatDate(consignment.receivedDate)}
+                        {formatDate(consignment.date)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -457,24 +433,24 @@ const ConsignmentList = ({
                           </div>
                           <div>
                             <div className="font-medium text-[#571C1F]">
-                              {consignment.invoiceNumber || 'No Invoice'}
+                              {consignment.invoice_number || 'No Invoice'}
                             </div>
-                            {consignment.referenceNumber && (
+                            {consignment.reference_number && (
                               <div className="text-xs text-gray-600 truncate max-w-xs">
-                                Ref: {consignment.referenceNumber}
+                                Ref: {consignment.reference_number}
                               </div>
                             )}
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#571C1F] dark:text-gray-600 font-medium">
-                        {getSupplierName(consignment.supplierId)}
+                        {consignment.supplier_name || 'Unknown Supplier'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#571C1F] dark:text-gray-600 font-medium">
                         {calculateTotalItems(consignment)} items
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#571C1F] font-medium">
-                        {formatCurrency(calculateTotalValue(consignment))}
+                        {formatCurrency(consignment.total)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(consignment.paymentStatus)}`}>
@@ -595,9 +571,9 @@ const ConsignmentList = ({
         {currentConsignment && (
           <ConsignmentDetails
             consignment={currentConsignment}
-            supplier={suppliers.find(s => s.id === currentConsignment.supplierId)}
             onEdit={() => {
               setShowDetailsModal(false);
+              // Pass the correct ID to handleEditConsignment
               handleEditConsignment(currentConsignment);
             }}
             onClose={() => setShowDetailsModal(false)}

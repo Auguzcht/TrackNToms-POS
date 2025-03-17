@@ -33,7 +33,11 @@ const SuppliersPage = () => {
     deleteSupplier,
     consignments, 
     fetchConsignments,
-    deleteConsignment
+    deleteConsignment,
+    // Add purchase orders functionality
+    purchaseOrders,
+    fetchPurchaseOrders,
+    deletePurchaseOrder
   } = useSuppliers();
   
   // Add inventory hook for pulling data related to pullouts
@@ -93,20 +97,36 @@ const SuppliersPage = () => {
     try {
       switch (activeTab) {
         case 'suppliers':
-          await fetchSuppliers();
+          console.log('Fetching suppliers data...');
+          const suppliersData = await fetchSuppliers();
+          console.log(`Retrieved ${suppliersData.length} suppliers`);
           break;
         case 'consignments':
+          console.log('Fetching consignments and suppliers data...');
           // When consignments tab is active, we need both suppliers and consignments
-          await Promise.all([fetchSuppliers(), fetchConsignments()]);
+          const [suppliersResult, consignmentsResult] = await Promise.all([
+            fetchSuppliers(),
+            fetchConsignments()
+          ]);
+          console.log(`Retrieved ${suppliersResult.length} suppliers and ${consignmentsResult.length} consignments`);
           break;
         case 'purchase-orders':
-          // Add purchase order fetching when implemented
-          // For now just simulate a successful load
-          await new Promise(resolve => setTimeout(resolve, 300));
+          console.log('Fetching purchase orders and suppliers data...');
+          // Fetch both suppliers and purchase orders when on purchase orders tab
+          const [suppliersForPO, purchaseOrdersResult] = await Promise.all([
+            fetchSuppliers(),
+            fetchPurchaseOrders()
+          ]);
+          console.log(`Retrieved ${suppliersForPO.length} suppliers and ${purchaseOrdersResult.length} purchase orders`);
           break;
         case 'pullouts':
+          console.log('Fetching pullouts and ingredients data...');
           // Fetch both pullouts and ingredients for the pullout page
-          await Promise.all([fetchPullouts(), fetchIngredients()]);
+          const [pulloutsResult, ingredientsResult] = await Promise.all([
+            fetchPullouts(),
+            fetchIngredients()
+          ]);
+          console.log(`Retrieved ${pulloutsResult.length} pullouts and ${ingredientsResult.length} ingredients`);
           break;
         default:
           break;
@@ -114,11 +134,11 @@ const SuppliersPage = () => {
     } catch (err) {
       console.error(`Error loading ${activeTab} data:`, err);
       setPageError(err.message || `Failed to load ${activeTab} data`);
-      toast.error(`Could not load ${activeTab}. Please try again.`);
+      toast.error(`Could not load ${activeTab}. ${err.message || 'Please try again.'}`);
     } finally {
       setPageLoading(false);
     }
-  }, [activeTab, fetchSuppliers, fetchConsignments, fetchPullouts, fetchIngredients]);
+  }, [activeTab, fetchSuppliers, fetchConsignments, fetchPurchaseOrders, fetchPullouts, fetchIngredients]);
 
   // Initial data fetch
   useEffect(() => {
@@ -140,6 +160,16 @@ const SuppliersPage = () => {
       console.error(`Attempted to edit ${type} with invalid ID:`, id);
       toast.error(`Cannot edit ${type}: Invalid ID`);
       return;
+    }
+    
+    // Convert string IDs to numbers for consistency with database
+    if (typeof id === 'string') {
+      id = parseInt(id, 10);
+      if (isNaN(id)) {
+        console.error(`Invalid ${type} ID format:`, id);
+        toast.error(`Cannot edit ${type}: Invalid ID format`);
+        return;
+      }
     }
     
     setModalType(type);
@@ -172,7 +202,15 @@ const SuppliersPage = () => {
     if (!id) return;
     
     try {
-      // Use SweetAlert2 for confirmation if available
+      // Convert string IDs to numbers for consistency with database
+      if (typeof id === 'string') {
+        id = parseInt(id, 10);
+        if (isNaN(id)) {
+          throw new Error(`Invalid ${type} ID format`);
+        }
+      }
+      
+      // Use SweetAlert2 for confirmation
       const confirmResult = await Swal.fire({
         title: 'Are you sure?',
         text: `This ${type} will be permanently deleted.`,
@@ -196,8 +234,7 @@ const SuppliersPage = () => {
         await deleteConsignment(id);
         toast.success('Consignment deleted successfully');
       } else if (type === 'purchase-order') {
-        // Add purchase order deletion when implemented
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
+        await deletePurchaseOrder(id);
         toast.success('Purchase order deleted successfully');
       } else if (type === 'pullout') {
         await deletePullout(id);
@@ -640,12 +677,15 @@ const SuppliersPage = () => {
                     <PulloutList
                       pullouts={pullouts || []}
                       ingredients={ingredients || []}
-                      loading={loading || pageLoading}
+                      loading={inventoryLoading || pageLoading} // Change from loading to inventoryLoading
                       onEdit={(id) => openEditModal('pullout', id)}
                       onDelete={(id) => handleDelete('pullout', id)}
                       canApprovePullouts={canManagePullouts}
                       canCreatePullouts={canCreatePullouts}
                       currentUser={user}
+                      onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+                      useExternalModals={true}
+                      onAdd={() => openAddModal('pullout')}
                     />
                   </motion.div>
                 )}

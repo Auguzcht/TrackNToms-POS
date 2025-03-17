@@ -52,8 +52,12 @@ const InventoryList = ({
     let aValue, bValue;
     
     if (type === 'ingredient') {
-      aValue = sortConfig.key === 'name' ? a.name : a[sortConfig.key];
-      bValue = sortConfig.key === 'name' ? b.name : b[sortConfig.key];
+      aValue = sortConfig.key === 'name' ? a.name : 
+              sortConfig.key === 'cost_per_unit' ? a.unit_cost : // Look for unit_cost in the database
+              a[sortConfig.key];
+      bValue = sortConfig.key === 'name' ? b.name : 
+              sortConfig.key === 'cost_per_unit' ? b.unit_cost : // Look for unit_cost in the database
+              b[sortConfig.key];
     } else {
       aValue = sortConfig.key === 'item_name' ? a.item_name : a[sortConfig.key];
       bValue = sortConfig.key === 'item_name' ? b.item_name : b[sortConfig.key];
@@ -363,7 +367,7 @@ const InventoryList = ({
               </span>
             </td>
             <td className="px-6 py-4 text-sm text-gray-800 dark:text-[#571C1F] font-medium">
-              {formatCurrency(ingredient.cost_per_unit)}
+              {formatCurrency(ingredient.unit_cost || ingredient.cost_per_unit)}
             </td>
             <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
               <div className="flex justify-end space-x-2" onClick={e => e.stopPropagation()}>

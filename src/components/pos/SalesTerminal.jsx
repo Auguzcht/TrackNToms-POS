@@ -6,7 +6,7 @@ import Payment from './Payment';
 import { useSales } from '../../hooks/useSales';
 import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'react-hot-toast';
-
+import api from '../../services/api'; // Assuming you have an api module for making requests
 const SalesTerminal = () => {
   const { user } = useAuth();
   const { addSale } = useSales();
@@ -24,109 +24,109 @@ const SalesTerminal = () => {
   const [inventory, setInventory] = useState({}); // For tracking inventory
 
   useEffect(() => {
-    // Fetch product categories and products
     const fetchProducts = async () => {
       try {
-        // In a real app, this would come from your API
-        const dummyCategories = [
-          { id: 'coffee', name: 'Coffee' },
-          { id: 'drinks', name: 'Drinks' },
-          { id: 'pastries', name: 'Pastries' },
-          { id: 'food', name: 'Food' },
-          { id: 'addons', name: 'Add Ons' },
-        ];
-        
-        const dummyProducts = [
-          { id: 1, name: 'Americano', category: 'coffee', price: 120, image: null },
-          { id: 2, name: 'Cappuccino', category: 'coffee', price: 150, image: null },
-          { id: 3, name: 'Latte', category: 'coffee', price: 160, image: null },
-          { id: 4, name: 'Mocha', category: 'coffee', price: 170, image: null },
-          { id: 5, name: 'Croissant', category: 'pastries', price: 85, image: null },
-          { id: 6, name: 'Chocolate Muffin', category: 'pastries', price: 90, image: null },
-          { id: 7, name: 'Sandwich', category: 'food', price: 160, image: null },
-          { id: 8, name: 'Pasta', category: 'food', price: 220, image: null },
-          { id: 9, name: 'Orange Juice', category: 'drinks', price: 110, image: null },
-          { id: 10, name: 'Extra Shot', category: 'addons', price: 40, image: null },
-          { id: 11, name: 'Vanilla Syrup', category: 'addons', price: 30, image: null },
-          { id: 12, name: 'Espresso', category: 'coffee', price: 110, image: null },
-        ];
-        
-        // Initialize dummy inventory
-        const dummyInventory = {};
-        dummyProducts.forEach(product => {
-          dummyInventory[product.id] = {
-            quantity: Math.floor(Math.random() * 20) + 5,
-            threshold: 3
-          };
-        });
+        const response = await api.get('/inventory/items');
+        const menuItems = response.data;
 
-        setCategories(dummyCategories);
-        setProducts(dummyProducts);
-        setInventory(dummyInventory);
-        setSelectedCategory('coffee'); // Default to coffee
+        // Extract unique categories from items
+        const uniqueCategories = [...new Set(menuItems.map(item => item.category))];
+        const formattedCategories = uniqueCategories.map(category => ({
+          id: category.toLowerCase(),
+          name: category
+        }));
+
+        // Format products to match our component structure
+        const formattedProducts = menuItems.map(item => ({
+          id: item.item_id,
+          name: item.item_name,
+          category: item.category.toLowerCase(),
+          price: parseFloat(item.base_price),
+          description: item.description,
+          image: item.image,
+          is_externally_sourced: item.is_externally_sourced
+        }));
+
+        setCategories(formattedCategories);
+        setProducts(formattedProducts);
+        setSelectedCategory(formattedCategories[0]?.id || 'coffee');
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching menu items:', error);
+        toast.error('Failed to load menu items');
         setLoading(false);
       }
     };
-    
+
     fetchProducts();
   }, []);
 
-  const addItemToOrder = (product) => {
-    // Check inventory
-    if (inventory[product.id]?.quantity <= 0) {
-      toast.error(`${product.name} is out of stock!`);
-      return;
-    }
+  const addItemToOrder = async (product) => {
+    try {
+      // Check ingredient availability first
+      const availability = await api.get(`/inventory/items/${product.id}/ingredients/availability`, {
+        params: { quantity: 1 }
+      });
 
-    const existingItem = activeOrder.items.find(item => item.id === product.id);
-    let updatedItems;
-    
-    if (existingItem) {
-      // If item exists, check if we can add more based on inventory
-      if (existingItem.quantity + 1 > inventory[product.id].quantity) {
-        toast.error(`Not enough ${product.name} in stock!`);
+      if (!availability.data.available) {
+        toast.error(availability.data.message || `${product.name} is out of stock!`);
         return;
       }
+
+      // Rest of the existing addItemToOrder logic...
+      const existingItem = activeOrder.items.find(item => item.id === product.id);
+      let updatedItems;
       
-      // Update quantity
-      updatedItems = activeOrder.items.map(item => {
-        if (item.id === product.id) {
-          return {
-            ...item,
-            quantity: item.quantity + 1,
-            subtotal: (item.quantity + 1) * product.price
-          };
+      if (existingItem) {
+        // Check availability for increased quantity
+        const newQuantity = existingItem.quantity + 1;
+        const availabilityCheck = await api.get(`/inventory/items/${product.id}/ingredients/availability`, {
+          params: { quantity: newQuantity }
+        });
+
+        if (!availabilityCheck.data.available) {
+          toast.error(availabilityCheck.data.message);
+          return;
         }
-        return item;
+
+        updatedItems = activeOrder.items.map(item => {
+          if (item.id === product.id) {
+            return {
+              ...item,
+              quantity: newQuantity,
+              subtotal: newQuantity * item.price
+            };
+          }
+          return item;
+        });
+      } else {
+        updatedItems = [
+          ...activeOrder.items,
+          {
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            quantity: 1,
+            subtotal: product.price
+          }
+        ];
+      }
+
+      const subtotal = updatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+      const tax = subtotal * 0.12; // Tax rate could come from settings
+      const total = subtotal + tax;
+
+      setActiveOrder({
+        items: updatedItems,
+        subtotal,
+        tax,
+        total
       });
-    } else {
-      // Add new item
-      updatedItems = [
-        ...activeOrder.items,
-        {
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          quantity: 1,
-          subtotal: product.price
-        }
-      ];
+
+    } catch (error) {
+      console.error('Error adding item to order:', error);
+      toast.error('Failed to add item to order');
     }
-    
-    // Calculate totals
-    const subtotal = updatedItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const tax = subtotal * 0.12;
-    const total = subtotal + tax;
-    
-    setActiveOrder({
-      items: updatedItems,
-      subtotal,
-      tax,
-      total
-    });
   };
   
   const updateItemQuantity = (itemId, quantity) => {
@@ -221,43 +221,46 @@ const SalesTerminal = () => {
 
   const completePayment = async (paymentData) => {
     try {
-      // In a real app, this would be an API call to record the sale and update inventory
-      
-      // Generate a sale ID
-      const saleId = `SALE-${Date.now().toString().slice(-6)}`;
-      
-      // Prepare sale data with order details and payment info
+      // Prepare sale data matching database schema
       const saleData = {
-        id: saleId,
-        date: new Date(),
-        cashier: user?.name || 'Unknown',
-        items: activeOrder.items,
-        subtotal: activeOrder.subtotal,
-        tax: activeOrder.tax,
-        total: activeOrder.total,
-        payment: paymentData
+        cashier_id: user?.staff_id || 1,
+        sale_date: new Date().toISOString(),
+        payment_method: paymentData.method,
+        total_amount: activeOrder.total,
+        items: activeOrder.items.map(item => ({
+          item_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.price,
+          subtotal: item.subtotal
+        }))
       };
-      
-      // Simulate API processing time
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Update inventory by deducting sold items
-      updateInventory();
-      
-      // In a real app, you would call your addSale method:
-      // const result = await addSale(saleData);
-      
-      // Log the completed sale
-      console.log('Sale completed:', saleData);
-      
-      // Return successful result with sale ID
-      return {
-        success: true,
-        saleId: saleId
-      };
+
+      // Call the addSale method from useSales
+      const result = await addSale(saleData);
+
+      if (result) {
+        // Clear the order
+        clearOrder();
+        setPaymentStep(false);
+        toast.success(`Sale #${result.sale_id} completed successfully`);
+
+        // Deduct ingredients from inventory through the API
+        await api.post('/inventory/deduct-ingredients', {
+          items: saleData.items
+        });
+
+        return {
+          success: true,
+          saleId: result.sale_id
+        };
+      }
     } catch (error) {
-      console.error('Error completing payment:', error);
-      return { success: false, error: 'Failed to process payment' };
+      console.error('Error completing sale:', error);
+      toast.error(error.message || 'Failed to process sale');
+      return { 
+        success: false, 
+        error: error.message || 'Failed to process sale' 
+      };
     }
   };
 

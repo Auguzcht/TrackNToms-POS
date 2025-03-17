@@ -15,6 +15,7 @@ export const formatCurrency = (amount) => {
 
 export const SalesProvider = ({ children }) => {
   const [sales, setSales] = useState([]);
+  const [products, setProducts] = useState([]); // Add state for products
   const [orders, setOrders] = useState([]);
   const [activeOrders, setActiveOrders] = useState([]);
   const [currentSale, setCurrentSale] = useState(null);
@@ -26,10 +27,26 @@ export const SalesProvider = ({ children }) => {
     monthly: 0
   });
 
-  // Initialize with mock data on component mount
-  useEffect(() => {
-    initializeMockData();
+  // Fetch products from API
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await api.get('/inventory/items');
+      setProducts(response.data);
+      return response.data;
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      throw err;
+    }
   }, []);
+
+  // Initialize with real data
+  useEffect(() => {
+    const initialize = async () => {
+      await fetchProducts();
+      initializeMockData();
+    };
+    initialize();
+  }, [fetchProducts]);
 
   // Function to initialize mock data
   const initializeMockData = () => {
@@ -41,71 +58,52 @@ export const SalesProvider = ({ children }) => {
     calculateSalesStats(mockSales);
   };
 
-  // Generate mock sales data
+  // Update generateMockSales to use real product data
   const generateMockSales = () => {
-    // Generate random dates within the past 30 days
     const today = new Date();
     const pastMonth = new Date(today);
     pastMonth.setDate(pastMonth.getDate() - 30);
     
-    const mockCategories = ['Coffee', 'Pastries', 'Food', 'Drinks', 'Add Ons'];
-    const mockProducts = [
-      { id: 1, name: 'Americano', category: 'Coffee', price: 120 },
-      { id: 2, name: 'Latte', category: 'Coffee', price: 150 },
-      { id: 3, name: 'Cappuccino', category: 'Coffee', price: 150 },
-      { id: 4, name: 'Espresso', category: 'Coffee', price: 100 },
-      { id: 5, name: 'Croissant', category: 'Pastries', price: 80 },
-      { id: 6, name: 'Chocolate Chip Cookie', category: 'Pastries', price: 60 },
-      { id: 7, name: 'Sandwich', category: 'Food', price: 180 },
-      { id: 8, name: 'Iced Tea', category: 'Drinks', price: 100 },
-      { id: 9, name: 'Extra Shot', category: 'Add Ons', price: 40 },
-      { id: 10, name: 'Caramel Syrup', category: 'Add Ons', price: 30 },
-    ];
-    
     const paymentMethods = ['cash', 'credit_card', 'gcash', 'maya'];
-    
     const mockSales = [];
     
     // Generate 100 random sales
     for (let i = 1; i <= 100; i++) {
-      // Random date within the past month
       const saleDate = new Date(
         pastMonth.getTime() + Math.random() * (today.getTime() - pastMonth.getTime())
       );
       
-      // Generate between 1 and 5 items for this sale
       const itemCount = Math.floor(Math.random() * 5) + 1;
       const items = [];
       let subtotal = 0;
       
       for (let j = 0; j < itemCount; j++) {
-        const randomProduct = mockProducts[Math.floor(Math.random() * mockProducts.length)];
-        const quantity = Math.floor(Math.random() * 3) + 1;
-        const itemTotal = randomProduct.price * quantity;
-        subtotal += itemTotal;
-        
-        items.push({
-          item_id: randomProduct.id,
-          name: randomProduct.name,
-          category: randomProduct.category,
-          price: randomProduct.price,
-          quantity: quantity,
-          total: itemTotal
-        });
+        const randomProduct = products[Math.floor(Math.random() * products.length)];
+        if (randomProduct) {
+          const quantity = Math.floor(Math.random() * 3) + 1;
+          const itemTotal = parseFloat(randomProduct.base_price) * quantity;
+          subtotal += itemTotal;
+          
+          items.push({
+            item_id: randomProduct.item_id,
+            name: randomProduct.item_name,
+            category: randomProduct.category,
+            price: parseFloat(randomProduct.base_price),
+            quantity: quantity,
+            total: itemTotal
+          });
+        }
       }
       
-      // Apply tax (5%)
       const tax = Math.round(subtotal * 0.05);
       const total = subtotal + tax;
       
-      // Random payment method
       const paymentMethod = paymentMethods[Math.floor(Math.random() * paymentMethods.length)];
       
-      // Create sale object
       mockSales.push({
         sale_id: i,
         date: saleDate.toISOString(),
-        cashier_id: Math.random() > 0.5 ? 1 : 2, // Either manager or cashier
+        cashier_id: Math.random() > 0.5 ? 1 : 2,
         cashier_name: Math.random() > 0.5 ? 'John Manager' : 'Jane Cashier',
         payment_method: paymentMethod,
         subtotal: subtotal,
@@ -115,7 +113,6 @@ export const SalesProvider = ({ children }) => {
       });
     }
     
-    // Sort by date, newest first
     return mockSales.sort((a, b) => new Date(b.date) - new Date(a.date));
   };
 
