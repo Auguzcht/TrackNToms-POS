@@ -6,7 +6,6 @@ import Payment from './Payment';
 import { useSales } from '../../hooks/useSales';
 import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'react-hot-toast';
-import api from '../../services/api'; // Assuming you have an api module for making requests
 const SalesTerminal = () => {
   const { user } = useAuth();
   const { addSale } = useSales();

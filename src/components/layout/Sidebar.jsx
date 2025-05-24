@@ -1,80 +1,173 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
+import { usePermissions } from '../../hooks/usePermissions';
+import { APP_VERSION } from '../../services/constants';
 import tomsLogo from '../../assets/TomNToms-Logo-2.png';
 
 const Sidebar = ({ isOpen }) => {
   const { user } = useAuth();
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions();
   const location = useLocation();
   const [expandedMenu, setExpandedMenu] = useState(null);
   const [activeSubpage, setActiveSubpage] = useState(null);
 
-  // Define navigation items with subpages
+  // Define navigation items with required permissions
   const navItems = [
     { 
       name: 'Dashboard', 
       path: '/', 
       icon: 'chart-bar', 
-      allowedRoles: ['Cashier', 'Manager'],
+      requiredPermission: 'dashboard.view',
       exact: true 
     },
     { 
       name: 'POS', 
       path: '/pos', 
       icon: 'shopping-cart', 
-      allowedRoles: ['Cashier', 'Manager'] 
+      requiredPermission: 'sales.view',
     },
     { 
       name: 'Inventory', 
       path: '/inventory', 
       icon: 'clipboard-list', 
-      allowedRoles: ['Manager'],
+      requiredPermission: 'inventory.view',
       subpages: [
-        { name: 'Ingredients', path: '/inventory?tab=ingredients' },
-        { name: 'Menu Items', path: '/inventory?tab=items' }
+        { 
+          name: 'Ingredients', 
+          path: '/inventory?tab=ingredients',
+          requiredPermission: 'inventory.view'
+        },
+        { 
+          name: 'Menu Items', 
+          path: '/inventory?tab=items',
+          requiredPermission: 'inventory.view'
+        }
       ] 
     },
     { 
       name: 'Suppliers', 
       path: '/suppliers', 
       icon: 'truck', 
-      allowedRoles: ['Manager'],
+      requiredPermission: 'suppliers.view',
       subpages: [
-        { name: 'Suppliers', path: '/suppliers?tab=suppliers' },
-        { name: 'Purchase Orders', path: '/suppliers?tab=purchase-orders' },
-        { name: 'Consignments', path: '/suppliers?tab=consignments' },
-        { name: 'Pullouts', path: '/suppliers?tab=pullouts' }
+        { 
+          name: 'Suppliers', 
+          path: '/suppliers?tab=suppliers',
+          requiredPermission: 'suppliers.view'
+        },
+        { 
+          name: 'Purchase Orders', 
+          path: '/suppliers?tab=purchase-orders',
+          requiredPermission: 'purchases.view'
+        },
+        { 
+          name: 'Consignments', 
+          path: '/suppliers?tab=consignments',
+          requiredPermission: 'suppliers.view'
+        },
+        { 
+          name: 'Pullouts', 
+          path: '/suppliers?tab=pullouts',
+          requiredPermission: 'pullouts.view'
+        }
       ] 
     },
     { 
       name: 'Staff', 
       path: '/staff', 
       icon: 'users', 
-      allowedRoles: ['Manager'],
+      requiredPermission: 'staff.view',
       subpages: [
-        { name: 'Staff List', path: '/staff?tab=staff' },
-        { name: 'Role Management', path: '/staff?tab=roles' }
+        { 
+          name: 'Staff List', 
+          path: '/staff?tab=staff',
+          requiredPermission: 'staff.view'
+        },
+        { 
+          name: 'Role Management', 
+          path: '/staff?tab=roles',
+          requiredPermission: 'staff.manage_roles'
+        }
       ] 
     },
     { 
       name: 'Reports', 
       path: '/reports', 
       icon: 'document-report', 
-      allowedRoles: ['Manager'],
+      requiredPermission: 'reports.view',
       subpages: [
-        { name: 'Sales Report', path: '/reports?tab=sales' },
-        { name: 'Inventory Report', path: '/reports?tab=inventory' },
-        { name: 'Financial Report', path: '/reports?tab=financial' }
+        { 
+          name: 'Sales Report', 
+          path: '/reports?tab=sales',
+          requiredPermission: 'reports.sales'
+        },
+        { 
+          name: 'Inventory Report', 
+          path: '/reports?tab=inventory',
+          requiredPermission: 'reports.inventory'
+        },
+        { 
+          name: 'Financial Report', 
+          path: '/reports?tab=financial',
+          requiredPermission: 'reports.financial'
+        }
       ] 
+    },
+    { 
+      name: 'Settings', 
+      path: '/settings', 
+      icon: 'cog', 
+      requiredPermission: 'settings.view'
     },
   ];
 
-  // Rest of your component remains unchanged
-  // Filter nav items based on user role
-  const filteredNavItems = user 
-    ? navItems.filter(item => item.allowedRoles.includes(user.role))
-    : [];
+  // Filter nav items based on user permissions
+  const filteredNavItems = useMemo(() => {
+    if (!user || permissionsLoading) return [];
+
+    // Special case: Admin has access to everything, bypass permission checks
+    if (user.role === 'Admin') {
+      return navItems;
+    }
+
+    // For other roles, check specific permissions
+    return navItems.filter(item => {
+      // Check if user has permission for this main menu item
+      const hasMainPermission = hasPermission(item.requiredPermission);
+      
+      // If item has subpages, also filter them by permissions
+      if (item.subpages) {
+        // Get subpages that user has permission to access
+        const allowedSubpages = item.subpages.filter(subpage => 
+          hasPermission(subpage.requiredPermission)
+        );
+        
+        // If there are allowed subpages, include this item with only the allowed subpages
+        if (allowedSubpages.length > 0) {
+          return {
+            ...item,
+            subpages: allowedSubpages
+          };
+        }
+        
+        // If no subpages are allowed but main item is allowed, include it without subpages
+        if (hasMainPermission) {
+          return {
+            ...item,
+            subpages: undefined // Remove subpages
+          };
+        }
+        
+        // If neither main item nor subpages are allowed, exclude this item
+        return false;
+      }
+      
+      // For items without subpages, just check the main permission
+      return hasMainPermission;
+    });
+  }, [user, permissionsLoading, hasPermission]);
 
   // Update active subpage when location changes
   useEffect(() => {
@@ -111,7 +204,7 @@ const Sidebar = ({ isOpen }) => {
     return location.pathname === item.path;
   };
 
-  // Check if subpage is active - FIXED this function
+  // Check if subpage is active
   const isSubpageActive = (path) => {
     if (path.includes('?tab=')) {
       const [basePath, query] = path.split('?');
@@ -189,7 +282,7 @@ const Sidebar = ({ isOpen }) => {
   const highlightLineVariants = {
     hidden: { height: 0, opacity: 0 },
     visible: (subpages) => ({ 
-      height: '100%', // Changed from fixed height to 100%
+      height: '100%', 
       opacity: 1,
       transition: {
         duration: 0.5,
@@ -318,199 +411,231 @@ const Sidebar = ({ isOpen }) => {
           {/* Menu section with staggered animations */}
           <div className="flex flex-col h-full overflow-y-auto pt-4">
             <div className="flex-1 px-4 space-y-2">
-              {filteredNavItems.map((item, index) => (
-                <motion.div 
-                  key={item.path} 
-                  className="my-1"
-                  custom={index}
-                  variants={menuItemVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  {/* Main menu item */}
-                  {item.subpages ? (
-                    <div>
-                      <motion.button
-                        onClick={() => toggleSubpages(item.name)}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          isMenuActive(item)
-                            ? 'bg-[#571C1F] text-white shadow-md shadow-[#571C1F]/20 hover:text-white'
-                            : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-[#571C1F]'
-                        }`}
-                        whileHover={{ 
-                          x: 4, 
-                          transition: { duration: 0.2 } 
-                        }}
-                        whileTap={{ 
-                          scale: 0.98, 
-                          transition: { duration: 0.1 } 
-                        }}
-                      >
-                        <div className="flex items-center">
-                          <span className="mr-3 flex items-center justify-center w-6 h-6">
-                            <motion.svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              whileHover={{ 
-                                scale: 1.15, 
-                                transition: { duration: 0.2 } 
-                              }}
-                            >
-                              {renderIcon(item.icon)}
-                            </motion.svg>
-                          </span>
-                          {item.name}
-                        </div>
-                        
-                        {/* Animated arrow icon */}
-                        <motion.svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          animate={{ 
-                            rotate: expandedMenu === item.name ? 180 : 0,
-                            scale: expandedMenu === item.name ? 1.1 : 1
+              {permissionsLoading ? (
+                // Show loading placeholders while permissions are loading
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div 
+                    key={`loading-${i}`} 
+                    className="h-11 bg-gray-100 rounded-lg animate-pulse my-1"
+                  />
+                ))
+              ) : filteredNavItems.length === 0 ? (
+                // Show message if no navigation items are available
+                <div className="text-center py-8 px-4">
+                  <p className="text-sm text-[#571C1F]/70">
+                    No menu items available for your current role.
+                  </p>
+                </div>
+              ) : (
+                // Render actual menu items
+                filteredNavItems.map((item, index) => (
+                  <motion.div 
+                    key={item.path} 
+                    className="my-1"
+                    custom={index}
+                    variants={menuItemVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    {/* Main menu item */}
+                    {item.subpages ? (
+                      <div>
+                        <motion.button
+                          onClick={() => toggleSubpages(item.name)}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            isMenuActive(item)
+                              ? 'bg-[#571C1F] text-white shadow-md shadow-[#571C1F]/20 hover:text-white'
+                              : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-[#571C1F]'
+                          }`}
+                          whileHover={{ 
+                            x: 4, 
+                            transition: { duration: 0.2 } 
                           }}
-                          transition={{ duration: 0.3 }}
+                          whileTap={{ 
+                            scale: 0.98, 
+                            transition: { duration: 0.1 } 
+                          }}
                         >
-                          <path 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                            strokeWidth={2} 
-                            d="M19 9l-7 7-7-7" 
-                          />
-                        </motion.svg>
-                      </motion.button>
-                      
-                      {/* Dropdown subpages with enhanced animation */}
-                      <AnimatePresence>
-                        {expandedMenu === item.name && (
-                          <motion.div
-                            variants={subMenuContainerVariants}
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            className="ml-9 mt-2 space-y-1 relative"
-                          >
-                            {/* Vertical line container that spans full height */}
-                            <div className="absolute left-0 top-0 bottom-0 w-0.5 h-full">
-                              {/* Background line */}
-                              <motion.div 
-                                className="w-full bg-[#571C1F]/20 absolute inset-0 rounded-full"
-                                custom={item.subpages}
-                                variants={highlightLineVariants}
-                              />
-                              
-                              {/* Active line highlight that moves to selected item */}
-                              {activeSubpage && item.subpages.some(subpage => subpage.path === activeSubpage) && (
-                                <motion.div
-                                  className="w-full bg-[#571C1F] absolute left-0 rounded-full"
-                                  custom={item.subpages.findIndex(subpage => subpage.path === activeSubpage)}
-                                  variants={activeMarkerVariants}
-                                  initial="hidden"
-                                  animate="visible"
-                                  style={{ 
-                                    // Add fine-tuning adjustment directly in the style
-                                    marginTop: 2 
-                                  }}
-                                />
-                              )}
-                            </div>
-                            
-                            {/* Subpage items with individual animations */}
-                            {item.subpages.map((subpage) => (
-                              <motion.div
-                                key={subpage.path}
-                                variants={subMenuItemVariants}
+                          <div className="flex items-center">
+                            <span className="mr-3 flex items-center justify-center w-6 h-6">
+                              <motion.svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                whileHover={{ 
+                                  scale: 1.15, 
+                                  transition: { duration: 0.2 } 
+                                }}
                               >
-                                <NavLink
-                                  to={subpage.path}
-                                  className={({ isActive }) => `
-                                    flex items-center px-4 py-2.5 rounded-lg text-sm
-                                    transition-all duration-200
-                                    ${isSubpageActive(subpage.path) 
-                                      ? 'text-[#571C1F] font-medium bg-[#571C1F]/5 shadow-sm hover:bg-[#571C1F]/10 hover:text-[#571C1F]' 
-                                      : 'text-gray-600 hover:text-[#571C1F] hover:bg-gray-50'}
-                                  `}
-                                  onClick={() => setActiveSubpage(subpage.path)}
-                                >
-                                  <motion.span 
-                                    className={`w-2 h-2 mr-3 rounded-full ${
-                                      isSubpageActive(subpage.path)
-                                        ? 'bg-[#571C1F]'
-                                        : 'bg-[#571C1F]/30'
-                                    }`}
-                                    whileHover={{ 
-                                      scale: 1.5, 
-                                      backgroundColor: 'rgba(87, 28, 31, 1)',
-                                      transition: { duration: 0.2 }
+                                {renderIcon(item.icon)}
+                              </motion.svg>
+                            </span>
+                            {item.name}
+                          </div>
+                          
+                          {/* Animated arrow icon */}
+                          <motion.svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            animate={{ 
+                              rotate: expandedMenu === item.name ? 180 : 0,
+                              scale: expandedMenu === item.name ? 1.1 : 1
+                            }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <path 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              strokeWidth={2} 
+                              d="M19 9l-7 7-7-7" 
+                            />
+                          </motion.svg>
+                        </motion.button>
+                        
+                        {/* Dropdown subpages with enhanced animation */}
+                        <AnimatePresence>
+                          {expandedMenu === item.name && (
+                            <motion.div
+                              variants={subMenuContainerVariants}
+                              initial="hidden"
+                              animate="visible"
+                              exit="exit"
+                              className="ml-9 mt-2 space-y-1 relative"
+                            >
+                              {/* Vertical line container that spans full height */}
+                              <div className="absolute left-0 top-0 bottom-0 w-0.5 h-full">
+                                {/* Background line */}
+                                <motion.div 
+                                  className="w-full bg-[#571C1F]/20 absolute inset-0 rounded-full"
+                                  custom={item.subpages}
+                                  variants={highlightLineVariants}
+                                />
+                                
+                                {/* Active line highlight that moves to selected item */}
+                                {activeSubpage && item.subpages.some(subpage => subpage.path === activeSubpage) && (
+                                  <motion.div
+                                    className="w-full bg-[#571C1F] absolute left-0 rounded-full"
+                                    custom={item.subpages.findIndex(subpage => subpage.path === activeSubpage)}
+                                    variants={activeMarkerVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    style={{ 
+                                      // Add fine-tuning adjustment directly in the style
+                                      marginTop: 2 
                                     }}
-                                    animate={isSubpageActive(subpage.path) ? {
-                                      scale: [1, 1.2, 1],
-                                      transition: {
-                                        duration: 1.5,
-                                        repeat: Infinity,
-                                        repeatType: "reverse"
-                                      }
-                                    } : {}}
                                   />
-                                  {subpage.name}
-                                </NavLink>
-                              </motion.div>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ) : (
-                    <NavLink
-                      to={item.path}
-                      className={({ isActive }) => `
-                        flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200
-                        ${isActive 
-                          ? 'bg-[#571C1F] text-white shadow-md shadow-[#571C1F]/20 hover:text-white' 
-                          : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-[#571C1F]'}
-                      `}
-                    >
-                      <motion.span 
-                        className="mr-3 flex items-center justify-center w-6 h-6"
-                        whileHover={{ 
-                          rotate: 10,
-                          scale: 1.15,
-                          transition: { duration: 0.2 } 
-                        }}
+                                )}
+                              </div>
+                              
+                              {/* Subpage items with individual animations */}
+                              {item.subpages.map((subpage) => (
+                                <motion.div
+                                  key={subpage.path}
+                                  variants={subMenuItemVariants}
+                                >
+                                  <NavLink
+                                    to={subpage.path}
+                                    className={({ isActive }) => `
+                                      flex items-center px-4 py-2.5 rounded-lg text-sm
+                                      transition-all duration-200
+                                      ${isSubpageActive(subpage.path) 
+                                        ? 'text-[#571C1F] font-medium bg-[#571C1F]/5 shadow-sm hover:bg-[#571C1F]/10 hover:text-[#571C1F]' 
+                                        : 'text-gray-600 hover:text-[#571C1F] hover:bg-gray-50'}
+                                    `}
+                                    onClick={() => setActiveSubpage(subpage.path)}
+                                  >
+                                    <motion.span 
+                                      className={`w-2 h-2 mr-3 rounded-full ${
+                                        isSubpageActive(subpage.path)
+                                          ? 'bg-[#571C1F]'
+                                          : 'bg-[#571C1F]/30'
+                                      }`}
+                                      whileHover={{ 
+                                        scale: 1.5, 
+                                        backgroundColor: 'rgba(87, 28, 31, 1)',
+                                        transition: { duration: 0.2 }
+                                      }}
+                                      animate={isSubpageActive(subpage.path) ? {
+                                        scale: [1, 1.2, 1],
+                                        transition: {
+                                          duration: 1.5,
+                                          repeat: Infinity,
+                                          repeatType: "reverse"
+                                        }
+                                      } : {}}
+                                    />
+                                    {subpage.name}
+                                  </NavLink>
+                                </motion.div>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ) : (
+                      <NavLink
+                        to={item.path}
+                        className={({ isActive }) => `
+                          flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200
+                          ${isActive 
+                            ? 'bg-[#571C1F] text-white shadow-md shadow-[#571C1F]/20 hover:text-white' 
+                            : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-[#571C1F]'}
+                        `}
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+                        <motion.span 
+                          className="mr-3 flex items-center justify-center w-6 h-6"
+                          whileHover={{ 
+                            rotate: 10,
+                            scale: 1.15,
+                            transition: { duration: 0.2 } 
+                          }}
                         >
-                          {renderIcon(item.icon)}
-                        </svg>
-                      </motion.span>
-                      {item.name}
-                    </NavLink>
-                  )}
-                </motion.div>
-              ))}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            {renderIcon(item.icon)}
+                          </svg>
+                        </motion.span>
+                        {item.name}
+                      </NavLink>
+                    )}
+                  </motion.div>
+                ))
+              )}
             </div>
             
-            {/* Version indicator at bottom */}
-            <motion.div
-              className="px-4 py-3 text-center text-xs text-[#571C1F]/70 font-medium"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-            >
-              TrackNToms v1.0
-            </motion.div>
+            {/* User role badge and version indicator at bottom */}
+            <div className="px-4 py-3">
+              {user && (
+                <motion.div 
+                  className="mb-2 text-center"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                >
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#571C1F]/10 text-[#571C1F]">
+                    {user.role}
+                  </span>
+                </motion.div>
+              )}
+              <motion.div
+                className="text-center text-xs text-[#571C1F]/70 font-medium"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+              >
+                TrackNToms POS v{APP_VERSION}
+              </motion.div>
+            </div>
           </div>
         </motion.aside>
       )}
@@ -518,7 +643,7 @@ const Sidebar = ({ isOpen }) => {
   );
 };
 
-// Helper function to render the correct icon (unchanged)
+// Helper function to render the correct icon
 function renderIcon(icon) {
   switch (icon) {
     case 'chart-bar':
@@ -575,8 +700,25 @@ function renderIcon(icon) {
           d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
         />
       );
+    case 'cog':
+      return (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+        />
+      );
     default:
-      return null;
+      // Default icon if none matches
+      return (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      );
   }
 }
 

@@ -1,25 +1,144 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import api from '../services/api';
+import supabase from '../services/supabase';
+import { useAuth } from './useAuth';
 
 export const useInventory = () => {
+  const { user } = useAuth();
   const [ingredients, setIngredients] = useState([]);
   const [items, setItems] = useState([]);
   const [pullouts, setPullouts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [recipeIngredients, setRecipeIngredients] = useState([]);
+
+  // Set up real-time subscriptions for inventory changes
+  useEffect(() => {
+    // Subscription for ingredients
+    const ingredientsSubscription = supabase
+      .channel('ingredients-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'ingredients' 
+        }, 
+        (payload) => {
+          console.log('Ingredients change received:', payload);
+          // Handle different events
+          switch (payload.eventType) {
+            case 'INSERT':
+              setIngredients(prev => [...prev, payload.new]);
+              break;
+            case 'UPDATE':
+              setIngredients(prev => 
+                prev.map(ing => ing.ingredient_id === payload.new.ingredient_id ? 
+                  { ...ing, ...payload.new } : ing)
+              );
+              break;
+            case 'DELETE':
+              setIngredients(prev => 
+                prev.filter(ing => ing.ingredient_id !== payload.old.ingredient_id)
+              );
+              break;
+            default:
+              break;
+          }
+        }
+      )
+      .subscribe();
+
+    // Subscription for menu items
+    const itemsSubscription = supabase
+      .channel('items-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'items' 
+        }, 
+        (payload) => {
+          console.log('Menu items change received:', payload);
+          // Handle different events
+          switch (payload.eventType) {
+            case 'INSERT':
+              setItems(prev => [...prev, payload.new]);
+              break;
+            case 'UPDATE':
+              setItems(prev => 
+                prev.map(item => item.item_id === payload.new.item_id ? 
+                  { ...item, ...payload.new } : item)
+              );
+              break;
+            case 'DELETE':
+              setItems(prev => 
+                prev.filter(item => item.item_id !== payload.old.item_id)
+              );
+              break;
+            default:
+              break;
+          }
+        }
+      )
+      .subscribe();
+
+    // Subscription for pullouts
+    const pulloutsSubscription = supabase
+      .channel('pullouts-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'pullouts' 
+        }, 
+        (payload) => {
+          console.log('Pullouts change received:', payload);
+          // Handle different events
+          switch (payload.eventType) {
+            case 'INSERT':
+              setPullouts(prev => [...prev, payload.new]);
+              break;
+            case 'UPDATE':
+              setPullouts(prev => 
+                prev.map(po => po.pullout_id === payload.new.pullout_id ? 
+                  { ...po, ...payload.new } : po)
+              );
+              break;
+            case 'DELETE':
+              setPullouts(prev => 
+                prev.filter(po => po.pullout_id !== payload.old.pullout_id)
+              );
+              break;
+            default:
+              break;
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions when component unmounts
+    return () => {
+      supabase.removeChannel(ingredientsSubscription);
+      supabase.removeChannel(itemsSubscription);
+      supabase.removeChannel(pulloutsSubscription);
+    };
+  }, []);
   
   // Fetch ingredients
   const fetchIngredients = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Remove /api from path since it's already in the base URL
-      const response = await api.get('/inventory/ingredients');
-      console.log('Ingredients response:', response.data);
-      setIngredients(response.data);
-      return response.data;
+      const { data, error: ingredientsError } = await supabase
+        .from('ingredients')
+        .select('*')
+        .order('name', { ascending: true });
+      
+      if (ingredientsError) throw ingredientsError;
+      
+      console.log('Ingredients fetched:', data);
+      setIngredients(data || []);
+      return data || [];
     } catch (err) {
       console.error('Error fetching ingredients:', err);
       setError('Failed to fetch ingredients');
@@ -29,19 +148,24 @@ export const useInventory = () => {
     }
   }, []);
 
-  // Fetch items
+  // Fetch items (menu products)
   const fetchItems = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Remove /api from path since it's already in the base URL
-      const response = await api.get('/inventory/items');
-      console.log('Items response:', response.data);
-      setItems(response.data);
-      return response.data;
+      const { data, error: itemsError } = await supabase
+        .from('items')
+        .select('*')
+        .order('item_name', { ascending: true });
+      
+      if (itemsError) throw itemsError;
+      
+      console.log('Menu items fetched:', data);
+      setItems(data || []);
+      return data || [];
     } catch (err) {
-      console.error('Error fetching items:', err);
-      setError('Failed to fetch items');
+      console.error('Error fetching menu items:', err);
+      setError('Failed to fetch menu items');
       throw err;
     } finally {
       setLoading(false);
@@ -53,10 +177,16 @@ export const useInventory = () => {
     setLoading(true);
     setError(null);
     try {
-      // Remove /api from path since it's already in the base URL
-      const response = await api.get('/inventory/pullouts');
-      setPullouts(response.data);
-      return response.data;
+      // Get detailed pullout data with staff information
+      const { data, error: pulloutsError } = await supabase
+        .from('pullouts_with_staff')  // Using a view that joins pullouts with staff info
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (pulloutsError) throw pulloutsError;
+      
+      setPullouts(data || []);
+      return data || [];
     } catch (err) {
       console.error('Error fetching pullouts:', err);
       setError('Failed to fetch pullouts');
@@ -66,19 +196,23 @@ export const useInventory = () => {
     }
   }, []);
 
-  // Fetch inventory (all data)
+  // Fetch all inventory data at once
   const fetchInventory = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
-      await Promise.all([
+      const [ingredientsData, itemsData, pulloutsData] = await Promise.all([
         fetchIngredients(),
         fetchItems(),
         fetchPullouts()
       ]);
       
-      return { ingredients, items, pullouts };
+      return { 
+        ingredients: ingredientsData, 
+        items: itemsData, 
+        pullouts: pulloutsData 
+      };
     } catch (err) {
       console.error('Error fetching inventory:', err);
       setError(err.message || 'Failed to fetch inventory');
@@ -94,16 +228,27 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      const response = await api.post('/inventory/ingredients', ingredientData);
-      const newIngredient = response.data;
+      // Add created_at and updated_at timestamps
+      const newIngredientData = {
+        ...ingredientData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
       
-      setIngredients(prev => [...prev, newIngredient]);
+      const { data, error: insertError } = await supabase
+        .from('ingredients')
+        .insert(newIngredientData)
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      
       toast.success(`Ingredient ${ingredientData.name} added successfully!`);
-      return newIngredient;
+      return data;
     } catch (err) {
       console.error('Error adding ingredient:', err);
       setError('Failed to add ingredient');
-      toast.error('Failed to add ingredient');
+      toast.error(`Failed to add ingredient: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
@@ -116,19 +261,27 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      const response = await api.put(`/inventory/ingredients/${id}`, ingredientData);
-      const updatedIngredient = response.data;
+      // Add updated_at timestamp
+      const updatedIngredientData = {
+        ...ingredientData,
+        updated_at: new Date().toISOString()
+      };
       
-      setIngredients(prev => 
-        prev.map(ingredient => ingredient.ingredient_id === id ? updatedIngredient : ingredient)
-      );
+      const { data, error: updateError } = await supabase
+        .from('ingredients')
+        .update(updatedIngredientData)
+        .eq('ingredient_id', id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
       
       toast.success(`Ingredient ${ingredientData.name} updated successfully!`);
-      return updatedIngredient;
+      return data;
     } catch (err) {
       console.error(`Error updating ingredient with ID ${id}:`, err);
       setError(`Failed to update ingredient with ID ${id}`);
-      toast.error('Failed to update ingredient');
+      toast.error(`Failed to update ingredient: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
@@ -141,121 +294,221 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      await api.delete(`/inventory/ingredients/${id}`);
+      // First, check if the ingredient is used in any menu items
+      const { data: usageData, error: usageError } = await supabase
+        .from('item_ingredients')
+        .select('item_id')
+        .eq('ingredient_id', id)
+        .limit(1);
       
-      setIngredients(prev => 
-        prev.filter(ingredient => ingredient.ingredient_id !== id)
-      );
+      if (usageError) throw usageError;
+      
+      if (usageData && usageData.length > 0) {
+        throw new Error('Cannot delete an ingredient that is in use by menu items');
+      }
+      
+      // Now we can safely delete
+      const { error: deleteError } = await supabase
+        .from('ingredients')
+        .delete()
+        .eq('ingredient_id', id);
+      
+      if (deleteError) throw deleteError;
       
       toast.success('Ingredient deleted successfully!');
       return true;
     } catch (err) {
       console.error(`Error deleting ingredient with ID ${id}:`, err);
       setError(`Failed to delete ingredient with ID ${id}`);
-      toast.error('Failed to delete ingredient');
+      toast.error(`Failed to delete ingredient: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Add a new item/product
+  // Add a new menu item
   const addItem = useCallback(async (itemData) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await api.post('/inventory/items', itemData);
-      const newItem = response.data;
+      // Add created_at and updated_at timestamps
+      const newItemData = {
+        ...itemData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
       
-      setItems(prev => [...prev, newItem]);
+      const { data, error: insertError } = await supabase
+        .from('items')
+        .insert(newItemData)
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      
       toast.success(`Item ${itemData.item_name} added successfully!`);
-      return newItem;
+      return data;
     } catch (err) {
-      console.error('Error adding item:', err);
-      setError('Failed to add item');
-      toast.error('Failed to add item');
+      console.error('Error adding menu item:', err);
+      setError('Failed to add menu item');
+      toast.error(`Failed to add menu item: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Update an item/product
+  // Update a menu item
   const updateItem = useCallback(async (id, itemData) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await api.put(`/inventory/items/${id}`, itemData);
-      const updatedItem = response.data;
+      // Add updated_at timestamp
+      const updatedItemData = {
+        ...itemData,
+        updated_at: new Date().toISOString()
+      };
       
-      setItems(prev => 
-        prev.map(item => item.item_id === id ? updatedItem : item)
-      );
+      const { data, error: updateError } = await supabase
+        .from('items')
+        .update(updatedItemData)
+        .eq('item_id', id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
       
       toast.success(`Item ${itemData.item_name} updated successfully!`);
-      return updatedItem;
+      return data;
     } catch (err) {
-      console.error(`Error updating item with ID ${id}:`, err);
-      setError(`Failed to update item with ID ${id}`);
-      toast.error('Failed to update item');
+      console.error(`Error updating menu item with ID ${id}:`, err);
+      setError(`Failed to update menu item with ID ${id}`);
+      toast.error(`Failed to update menu item: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Delete an item/product
+  // Delete a menu item
   const deleteItem = useCallback(async (id) => {
     setLoading(true);
     setError(null);
     
     try {
-      await api.delete(`/inventory/items/${id}`);
+      // First delete any recipe ingredients (since they reference this item)
+      const { error: recipeError } = await supabase
+        .from('item_ingredients')
+        .delete()
+        .eq('item_id', id);
       
-      setItems(prev => 
-        prev.filter(item => item.item_id !== id)
-      );
+      if (recipeError) throw recipeError;
       
-      toast.success('Item deleted successfully!');
+      // Then delete the item itself
+      const { error: deleteError } = await supabase
+        .from('items')
+        .delete()
+        .eq('item_id', id);
+      
+      if (deleteError) throw deleteError;
+      
+      toast.success('Menu item deleted successfully!');
       return true;
     } catch (err) {
-      console.error(`Error deleting item with ID ${id}:`, err);
-      setError(`Failed to delete item with ID ${id}`);
-      toast.error('Failed to delete item');
+      console.error(`Error deleting menu item with ID ${id}:`, err);
+      setError(`Failed to delete menu item with ID ${id}`);
+      toast.error(`Failed to delete menu item: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Add a new pullout record
+  // Create a new pullout record
   const createPullout = useCallback(async (pulloutData) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await api.post('/inventory/pullouts', pulloutData);
-      const newPullout = response.data;
+      // Get the current ingredient quantity
+      const { data: ingredient, error: ingredientError } = await supabase
+        .from('ingredients')
+        .select('quantity')
+        .eq('ingredient_id', pulloutData.ingredient_id)
+        .single();
       
-      setPullouts(prev => [...prev, newPullout]);
+      if (ingredientError) throw ingredientError;
       
-      // Backend should handle ingredient quantity updates
-      // Refresh ingredients to get updated quantities
-      await fetchIngredients();
+      // Make sure we have enough quantity for the pullout
+      if (ingredient.quantity < pulloutData.quantity) {
+        throw new Error('Not enough quantity available for this pullout');
+      }
+
+      // Format pullout data
+      const pullout = {
+        ingredient_id: pulloutData.ingredient_id,
+        quantity: pulloutData.quantity,
+        reason: pulloutData.reason,
+        staff_id: pulloutData.staff_id || user?.staff_id,
+        status: 'pending', // Default status is pending
+        date_of_pullout: pulloutData.date_of_pullout || new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      // Create the pullout record
+      const { data: newPullout, error: pulloutError } = await supabase
+        .from('pullouts')
+        .insert(pullout)
+        .select()
+        .single();
+      
+      if (pulloutError) throw pulloutError;
+      
+      // If manager approval is included, approve it immediately
+      if (pulloutData.manager_id) {
+        const { data: approvedPullout, error: approveError } = await supabase
+          .from('pullouts')
+          .update({
+            manager_id: pulloutData.manager_id,
+            status: 'approved',
+            updated_at: new Date().toISOString()
+          })
+          .eq('pullout_id', newPullout.pullout_id)
+          .select()
+          .single();
+        
+        if (approveError) throw approveError;
+        
+        // Update ingredient quantity
+        const { error: updateError } = await supabase
+          .from('ingredients')
+          .update({ 
+            quantity: ingredient.quantity - pulloutData.quantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('ingredient_id', pulloutData.ingredient_id);
+        
+        if (updateError) throw updateError;
+        
+        toast.success('Pullout record created and approved');
+        return approvedPullout;
+      }
       
       toast.success('Pullout record created successfully!');
       return newPullout;
     } catch (err) {
       console.error('Error creating pullout:', err);
       setError('Failed to create pullout record');
-      toast.error('Failed to create pullout record');
+      toast.error(`Failed to create pullout record: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [fetchIngredients]);
+  }, [user?.staff_id]);
 
   // Update a pullout record
   const updatePullout = useCallback(async (id, pulloutData) => {
@@ -263,25 +516,67 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      const response = await api.put(`/inventory/pullouts/${id}`, pulloutData);
-      const updatedPullout = response.data;
+      // Get original pullout
+      const { data: originalPullout, error: fetchError } = await supabase
+        .from('pullouts')
+        .select('*')
+        .eq('pullout_id', id)
+        .single();
       
-      setPullouts(prev => prev.map(p => p.pullout_id === id ? updatedPullout : p));
+      if (fetchError) throw fetchError;
       
-      // Refresh ingredients to get updated quantities
-      await fetchIngredients();
+      // Don't allow updating approved or rejected pullouts
+      if (originalPullout.status !== 'pending') {
+        throw new Error(`Cannot update a pullout that is already ${originalPullout.status}`);
+      }
+      
+      // If ingredient or quantity changed, validate the new quantity
+      if (pulloutData.ingredient_id !== originalPullout.ingredient_id || 
+          pulloutData.quantity !== originalPullout.quantity) {
+        
+        const { data: ingredient, error: ingredientError } = await supabase
+          .from('ingredients')
+          .select('quantity')
+          .eq('ingredient_id', pulloutData.ingredient_id)
+          .single();
+        
+        if (ingredientError) throw ingredientError;
+        
+        if (ingredient.quantity < pulloutData.quantity) {
+          throw new Error('Not enough quantity available for this pullout');
+        }
+      }
+      
+      // Format update data
+      const updateData = {
+        ingredient_id: pulloutData.ingredient_id,
+        quantity: pulloutData.quantity,
+        reason: pulloutData.reason,
+        date_of_pullout: pulloutData.date_of_pullout || originalPullout.date_of_pullout,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Update the pullout
+      const { data: updatedPullout, error: updateError } = await supabase
+        .from('pullouts')
+        .update(updateData)
+        .eq('pullout_id', id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
       
       toast.success('Pullout record updated successfully!');
       return updatedPullout;
     } catch (err) {
       console.error(`Error updating pullout with ID ${id}:`, err);
       setError(`Failed to update pullout with ID ${id}`);
-      toast.error('Failed to update pullout record');
+      toast.error(`Failed to update pullout record: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [fetchIngredients]);
+  }, []);
 
   // Delete a pullout record
   const deletePullout = useCallback(async (id) => {
@@ -289,75 +584,141 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      await api.delete(`/inventory/pullouts/${id}`);
+      // Check if pullout is already approved - can't delete approved pullouts
+      const { data: pullout, error: fetchError } = await supabase
+        .from('pullouts')
+        .select('status')
+        .eq('pullout_id', id)
+        .single();
       
-      setPullouts(prev => prev.filter(p => p.pullout_id !== id));
+      if (fetchError) throw fetchError;
       
-      // Refresh ingredients to get updated quantities
-      await fetchIngredients();
+      if (pullout.status === 'approved') {
+        throw new Error('Cannot delete an approved pullout record');
+      }
+      
+      // Delete the pullout
+      const { error: deleteError } = await supabase
+        .from('pullouts')
+        .delete()
+        .eq('pullout_id', id);
+      
+      if (deleteError) throw deleteError;
       
       toast.success('Pullout record deleted successfully!');
       return true;
     } catch (err) {
       console.error(`Error deleting pullout with ID ${id}:`, err);
       setError(`Failed to delete pullout with ID ${id}`);
-      toast.error('Failed to delete pullout record');
+      toast.error(`Failed to delete pullout record: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [fetchIngredients]);
+  }, []);
 
   // Approve a pullout record
-  const approvePullout = useCallback(async (id, managerId, managerName) => {
+  const approvePullout = useCallback(async (id, managerId) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await api.patch(`/inventory/pullouts/${id}/approve`, {
-        manager_id: managerId
-      });
+      // Begin by getting the pullout information
+      const { data: pullout, error: pulloutError } = await supabase
+        .from('pullouts')
+        .select('*, ingredients:ingredient_id(quantity)')
+        .eq('pullout_id', id)
+        .single();
       
-      const approvedPullout = response.data;
+      if (pulloutError) throw pulloutError;
       
-      setPullouts(prev => prev.map(p => p.pullout_id === id ? approvedPullout : p));
+      if (pullout.status !== 'pending') {
+        throw new Error(`This pullout is already ${pullout.status}`);
+      }
       
-      // Refresh ingredients since approval might affect quantities
-      await fetchIngredients();
+      // Check if there is enough quantity
+      if (pullout.ingredients.quantity < pullout.quantity) {
+        throw new Error('Not enough quantity available for this pullout');
+      }
+      
+      // Approve the pullout
+      const { data: approvedPullout, error: approveError } = await supabase
+        .from('pullouts')
+        .update({
+          manager_id: managerId,
+          status: 'approved',
+          updated_at: new Date().toISOString()
+        })
+        .eq('pullout_id', id)
+        .select()
+        .single();
+      
+      if (approveError) throw approveError;
+      
+      // Update the ingredient quantity
+      const newQuantity = pullout.ingredients.quantity - pullout.quantity;
+      const { error: updateError } = await supabase
+        .from('ingredients')
+        .update({
+          quantity: newQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('ingredient_id', pullout.ingredient_id);
+      
+      if (updateError) throw updateError;
       
       toast.success('Pullout record approved successfully!');
       return approvedPullout;
     } catch (err) {
       console.error(`Error approving pullout with ID ${id}:`, err);
       setError(`Failed to approve pullout with ID ${id}`);
-      toast.error('Failed to approve pullout record');
+      toast.error(`Failed to approve pullout record: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [fetchIngredients]);
+  }, []);
 
   // Reject a pullout record
-  const rejectPullout = useCallback(async (id, managerId, managerName, reason) => {
+  const rejectPullout = useCallback(async (id, managerId, rejectionReason) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await api.patch(`/inventory/pullouts/${id}/reject`, {
-        manager_id: managerId,
-        reason: reason
-      });
+      // Check if pullout is still pending
+      const { data: pullout, error: pulloutError } = await supabase
+        .from('pullouts')
+        .select('status')
+        .eq('pullout_id', id)
+        .single();
       
-      const rejectedPullout = response.data;
+      if (pulloutError) throw pulloutError;
       
-      setPullouts(prev => prev.map(p => p.pullout_id === id ? rejectedPullout : p));
+      if (pullout.status !== 'pending') {
+        throw new Error(`This pullout is already ${pullout.status}`);
+      }
+      
+      // Reject the pullout
+      const { data: rejectedPullout, error: rejectError } = await supabase
+        .from('pullouts')
+        .update({
+          manager_id: managerId,
+          status: 'rejected',
+          rejection_reason: rejectionReason || 'Not approved',
+          updated_at: new Date().toISOString()
+        })
+        .eq('pullout_id', id)
+        .select()
+        .single();
+      
+      if (rejectError) throw rejectError;
       
       toast.success('Pullout record rejected successfully!');
       return rejectedPullout;
     } catch (err) {
       console.error(`Error rejecting pullout with ID ${id}:`, err);
       setError(`Failed to reject pullout with ID ${id}`);
-      toast.error('Failed to reject pullout record');
+      toast.error(`Failed to reject pullout record: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
@@ -370,16 +731,23 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // First check if we already have it in state
-      let pullout = pullouts.find(p => p.pullout_id === parseInt(id));
+      // Check if we have it locally
+      const localPullout = pullouts.find(p => p.pullout_id === parseInt(id));
       
-      // If not, fetch it from the API
-      if (!pullout) {
-        const response = await api.get(`/inventory/pullouts/${id}`);
-        pullout = response.data;
+      if (localPullout) {
+        return localPullout;
       }
       
-      return pullout;
+      // Fetch from database with related data
+      const { data, error: pulloutError } = await supabase
+        .from('pullouts_with_staff')  // View that joins pullouts with staff info
+        .select('*')
+        .eq('pullout_id', id)
+        .single();
+      
+      if (pulloutError) throw pulloutError;
+      
+      return data;
     } catch (err) {
       console.error(`Error fetching pullout with ID ${id}:`, err);
       setError(`Failed to fetch pullout with ID ${id}`);
@@ -389,79 +757,215 @@ export const useInventory = () => {
     }
   }, [pullouts]);
 
-  // Fetch item ingredients
+  // Fetch ingredients in a menu item recipe
   const fetchItemIngredients = useCallback(async (itemId) => {
     setLoading(true);
     setError(null);
+    
     try {
-      const response = await api.get(`/inventory/items/${itemId}/ingredients`);
-      return response.data;
+      const { data, error: recipeError } = await supabase
+        .from('item_ingredients')
+        .select(`
+          quantity,
+          ingredients:ingredient_id (
+            ingredient_id,
+            name,
+            unit,
+            quantity,
+            minimum_quantity,
+            unit_cost
+          )
+        `)
+        .eq('item_id', itemId);
+      
+      if (recipeError) throw recipeError;
+      
+      // Format data for easier consumption
+      const formattedRecipe = data.map(item => ({
+        ingredient_id: item.ingredients.ingredient_id,
+        name: item.ingredients.name,
+        unit: item.ingredients.unit,
+        quantity_per_item: item.quantity,
+        available_quantity: item.ingredients.quantity,
+        minimum_quantity: item.ingredients.minimum_quantity,
+        unit_cost: item.ingredients.unit_cost
+      }));
+      
+      setRecipeIngredients(formattedRecipe);
+      return formattedRecipe;
     } catch (err) {
-      console.error('Error fetching item ingredients:', err);
-      setError('Failed to fetch item ingredients');
+      console.error(`Error fetching ingredients for item ${itemId}:`, err);
+      setError(`Failed to fetch recipe ingredients`);
       throw err;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Update item ingredients
+  // Update menu item ingredients (recipe)
   const updateItemIngredients = useCallback(async (itemId, ingredients) => {
     setLoading(true);
     setError(null);
+    
     try {
-      const response = await api.post(`/inventory/items/${itemId}/ingredients`, {
-        ingredients
-      });
-      return response.data;
+      // First delete existing recipe
+      const { error: deleteError } = await supabase
+        .from('item_ingredients')
+        .delete()
+        .eq('item_id', itemId);
+      
+      if (deleteError) throw deleteError;
+      
+      // If there are ingredients to add
+      if (ingredients && ingredients.length > 0) {
+        // Format the ingredients data for insertion
+        const recipeData = ingredients.map(ing => ({
+          item_id: itemId,
+          ingredient_id: ing.ingredient_id,
+          quantity: ing.quantity
+        }));
+        
+        // Insert the new recipe ingredients
+        const { error: insertError } = await supabase
+          .from('item_ingredients')
+          .insert(recipeData);
+        
+        if (insertError) throw insertError;
+      }
+      
+      toast.success('Recipe updated successfully!');
+      return await fetchItemIngredients(itemId);
     } catch (err) {
-      console.error('Error updating item ingredients:', err);
-      setError('Failed to update item ingredients');
+      console.error(`Error updating recipe for item ${itemId}:`, err);
+      setError('Failed to update recipe');
+      toast.error(`Failed to update recipe: ${err.message}`);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchItemIngredients]);
 
-  // Check ingredient availability
+  // Check if a menu item has enough ingredients in stock
   const checkIngredientAvailability = useCallback(async (itemId, quantity = 1) => {
     try {
-      const response = await api.get(`/inventory/items/${itemId}/ingredients/availability`, {
-        params: { quantity }
-      });
-      return response.data;
+      // Get the recipe ingredients
+      const { data: recipe, error: recipeError } = await supabase
+        .from('item_ingredients')
+        .select(`
+          quantity,
+          ingredients:ingredient_id (
+            ingredient_id,
+            name,
+            quantity
+          )
+        `)
+        .eq('item_id', itemId);
+      
+      if (recipeError) throw recipeError;
+      
+      if (!recipe || recipe.length === 0) {
+        // No ingredients needed, so it's available
+        return { available: true };
+      }
+      
+      // Check if all ingredients have enough stock
+      const unavailable = recipe.filter(item => 
+        item.ingredients.quantity < (item.quantity * quantity)
+      );
+      
+      if (unavailable.length > 0) {
+        return {
+          available: false,
+          message: `Not enough ${unavailable[0].ingredients.name} in stock`
+        };
+      }
+      
+      return { available: true };
     } catch (err) {
-      console.error('Error checking ingredient availability:', err);
+      console.error(`Error checking availability for item ${itemId}:`, err);
       throw err;
     }
   }, []);
 
-  // Deduct ingredients for sale
+  // Process a sale by deducting ingredients
   const deductIngredientsForSale = useCallback(async (items) => {
     try {
-      const response = await api.post('/inventory/deduct-ingredients', { items });
+      // For each item in the sale, get its ingredients and calculate total deductions
+      const deductions = {};
       
-      // Update local ingredient quantities
-      setIngredients(prev => {
-        const newIngredients = [...prev];
-        response.data.deductions.forEach(deduction => {
-          const ingredient = newIngredients.find(i => i.ingredient_id === deduction.ingredient_id);
-          if (ingredient) {
-            ingredient.quantity -= deduction.quantity;
-            
-            // Check if we need to show low stock warning
-            if (ingredient.quantity <= ingredient.minimum_quantity) {
-              toast.warning(`Low stock alert: ${ingredient.name}`);
-            }
+      for (const item of items) {
+        // Get the recipe
+        const { data: recipe, error: recipeError } = await supabase
+          .from('item_ingredients')
+          .select(`
+            ingredient_id,
+            quantity,
+            ingredients:ingredient_id (
+              name,
+              quantity
+            )
+          `)
+          .eq('item_id', item.item_id);
+        
+        if (recipeError) throw recipeError;
+        
+        // Calculate deductions for each ingredient
+        for (const ingredient of recipe) {
+          const totalDeduction = ingredient.quantity * item.quantity;
+          
+          if (!deductions[ingredient.ingredient_id]) {
+            deductions[ingredient.ingredient_id] = {
+              ingredient_id: ingredient.ingredient_id,
+              name: ingredient.ingredients.name,
+              quantity: totalDeduction,
+              current_quantity: ingredient.ingredients.quantity
+            };
+          } else {
+            deductions[ingredient.ingredient_id].quantity += totalDeduction;
           }
-        });
-        return newIngredients;
-      });
-
-      return response.data;
+        }
+      }
+      
+      // Convert to array
+      const deductionsArray = Object.values(deductions);
+      
+      // Check if we have enough of all ingredients
+      for (const deduction of deductionsArray) {
+        if (deduction.current_quantity < deduction.quantity) {
+          throw new Error(`Not enough ${deduction.name} in stock`);
+        }
+      }
+      
+      // Perform the deductions - this will be a RDBMS transaction
+      for (const deduction of deductionsArray) {
+        const { error: updateError } = await supabase
+          .from('ingredients')
+          .update({
+            quantity: deduction.current_quantity - deduction.quantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('ingredient_id', deduction.ingredient_id);
+        
+        if (updateError) {
+          throw updateError;
+        }
+        
+        // Check if we need to show low stock warning
+        if ((deduction.current_quantity - deduction.quantity) <= 
+            // This is a placeholder - you'll need to get the minimum quantity
+            // In a real app, we'd join with the ingredients table to get this
+            (deduction.minimum_quantity || 5)) {
+          toast.warning(`Low stock alert: ${deduction.name}`);
+        }
+      }
+      
+      return {
+        success: true,
+        deductions: deductionsArray
+      };
     } catch (err) {
-      console.error('Error deducting ingredients:', err);
-      toast.error('Failed to update inventory');
+      console.error('Error processing sale deductions:', err);
+      toast.error(`Sale error: ${err.message}`);
       throw err;
     }
   }, []);

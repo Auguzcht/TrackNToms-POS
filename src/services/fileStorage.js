@@ -1,5 +1,5 @@
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
-import { storage } from "../config/firebase";
+import { storage } from "../services/firebase";
 
 /**
  * Upload a file to Firebase Storage
