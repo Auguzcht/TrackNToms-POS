@@ -962,7 +962,7 @@ export const useInventory = () => {
     }
   }, [fetchItemIngredients]);
 
-  // Check if a menu item has enough ingredients in stock
+  // Add this function to handle ingredient availability checking
   const checkIngredientAvailability = useCallback(async (itemId, quantity = 1) => {
     try {
       // Get the recipe ingredients
@@ -973,7 +973,8 @@ export const useInventory = () => {
           ingredients:ingredient_id (
             ingredient_id,
             name,
-            quantity
+            quantity,
+            minimum_quantity
           )
         `)
         .eq('item_id', itemId);
@@ -982,79 +983,114 @@ export const useInventory = () => {
       
       if (!recipe || recipe.length === 0) {
         // No ingredients needed, so it's available
-        return { available: true };
-      }
-      
-      // Check if all ingredients have enough stock
-      const unavailable = recipe.filter(item => 
-        item.ingredients.quantity < (item.quantity * quantity)
-      );
-      
-      if (unavailable.length > 0) {
-        return {
-          available: false,
-          message: `Not enough ${unavailable[0].ingredients.name} in stock`
+        return { 
+          available: true,
+          availableQuantity: 999,
+          lowStockThreshold: 5,
+          message: 'No ingredients required'
         };
       }
       
-      return { available: true };
-    } catch (err) {
-      console.error(`Error checking availability for item ${itemId}:`, err);
-      throw err;
+      // Check if all ingredients have enough stock
+      let available = true;
+      let limitingQuantity = Infinity;
+      let limitingIngredient = null;
+      let message = '';
+      
+      for (const item of recipe) {
+        if (!item.ingredients || item.ingredients.quantity === null) {
+          continue;
+        }
+        
+        const requiredQty = item.quantity * quantity;
+        const availableQty = item.ingredients.quantity || 0;
+        const availableBatches = Math.floor(availableQty / item.quantity);
+        
+        if (requiredQty > availableQty) {
+          available = false;
+          limitingIngredient = item.ingredients;
+          message = `Not enough ${item.ingredients.name} to make this item`;
+          break;
+        }
+        
+        if (availableBatches < limitingQuantity) {
+          limitingQuantity = availableBatches;
+          limitingIngredient = item.ingredients;
+        }
+      }
+      
+      return {
+        available,
+        availableQuantity: limitingQuantity,
+        lowStockThreshold: limitingIngredient?.minimum_quantity || 5,
+        message,
+        limitingIngredient: limitingIngredient?.name
+      };
+    } catch (error) {
+      console.error('Error checking ingredient availability:', error);
+      throw error;
     }
   }, []);
 
-  // Process a sale by deducting ingredients
-  const deductIngredientsForSale = useCallback(async (items) => {
+  // Add this function to process a sale by deducting ingredients
+  const processItemSale = useCallback(async (items) => {
     try {
-      // For each item in the sale, get its ingredients and calculate total deductions
-      const deductions = {};
+      const deductions = [];
       
+      // For each item being sold
       for (const item of items) {
-        // Get the recipe
+        // Get the recipe for the item
         const { data: recipe, error: recipeError } = await supabase
           .from('item_ingredients')
           .select(`
-            ingredient_id,
             quantity,
             ingredients:ingredient_id (
+              ingredient_id,
               name,
-              quantity
+              quantity,
+              minimum_quantity
             )
           `)
           .eq('item_id', item.item_id);
         
         if (recipeError) throw recipeError;
         
-        // Calculate deductions for each ingredient
+        if (!recipe || recipe.length === 0) {
+          continue; // No ingredients to deduct
+        }
+        
+        // Calculate the required ingredient amounts
         for (const ingredient of recipe) {
-          const totalDeduction = ingredient.quantity * item.quantity;
+          if (!ingredient.ingredients) continue;
           
-          if (!deductions[ingredient.ingredient_id]) {
-            deductions[ingredient.ingredient_id] = {
-              ingredient_id: ingredient.ingredient_id,
-              name: ingredient.ingredients.name,
-              quantity: totalDeduction,
-              current_quantity: ingredient.ingredients.quantity
-            };
-          } else {
-            deductions[ingredient.ingredient_id].quantity += totalDeduction;
-          }
+          const deductAmount = ingredient.quantity * item.quantity;
+          
+          // Add to deductions list
+          deductions.push({
+            ingredient_id: ingredient.ingredients.ingredient_id,
+            name: ingredient.ingredients.name,
+            quantity: deductAmount,
+            current_quantity: ingredient.ingredients.quantity || 0,
+            minimum_quantity: ingredient.ingredients.minimum_quantity || 5
+          });
         }
       }
       
-      // Convert to array
-      const deductionsArray = Object.values(deductions);
-      
-      // Check if we have enough of all ingredients
-      for (const deduction of deductionsArray) {
-        if (deduction.current_quantity < deduction.quantity) {
-          throw new Error(`Not enough ${deduction.name} in stock`);
+      // Group the deductions by ingredient
+      const groupedDeductions = {};
+      for (const deduction of deductions) {
+        if (!groupedDeductions[deduction.ingredient_id]) {
+          groupedDeductions[deduction.ingredient_id] = { ...deduction };
+        } else {
+          groupedDeductions[deduction.ingredient_id].quantity += deduction.quantity;
         }
       }
       
-      // Perform the deductions - this will be a RDBMS transaction
+      const deductionsArray = Object.values(groupedDeductions);
+      
+      // Process each deduction
       for (const deduction of deductionsArray) {
+        // Update the ingredient quantity
         const { error: updateError } = await supabase
           .from('ingredients')
           .update({
@@ -1068,10 +1104,7 @@ export const useInventory = () => {
         }
         
         // Check if we need to show low stock warning
-        if ((deduction.current_quantity - deduction.quantity) <= 
-            // This is a placeholder - you'll need to get the minimum quantity
-            // In a real app, we'd join with the ingredients table to get this
-            (deduction.minimum_quantity || 5)) {
+        if ((deduction.current_quantity - deduction.quantity) <= deduction.minimum_quantity) {
           toast.warning(`Low stock alert: ${deduction.name}`);
         }
       }
@@ -1155,7 +1188,7 @@ export const useInventory = () => {
     fetchItemIngredients,
     updateItemIngredients,
     checkIngredientAvailability,
-    deductIngredientsForSale,
+    processItemSale,
     recipeIngredients,
     getIngredientSuppliers,
     setPreferredSupplier

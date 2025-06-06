@@ -562,10 +562,6 @@ export const useStaff = () => {
         .from('staff')
         .select('role_id');
         
-      if (staffError) {
-        console.error('Error fetching staff for role count:', staffError);
-      }
-      
       // Create a count map of staff per role
       const countMap = {};
       if (allStaff) {
@@ -576,18 +572,119 @@ export const useStaff = () => {
         });
       }
       
-      // Simplified permission handling - don't query the database for permissions
-      // This removes the 406 and 400 errors you were experiencing
+      // First, get ALL permissions once to create a complete map
+      const { data: allPermissions, error: allPermsError } = await supabase
+        .from('permissions')
+        .select('permission_id, permission_name, resource_name, action_name');
+        
+      if (allPermsError) {
+        throw allPermsError;
+      }
       
-      // Format roles with counts but without querying permissions
-      const formattedRoles = roleData.map(role => ({
-        id: role.role_id,
-        name: role.role_name,
-        description: role.description || '',
-        staff_count: countMap[role.role_id] || 0,
-        permissions: [], // Will be populated on demand when editing roles
-        created_at: role.created_at,
-        updated_at: role.updated_at
+      // Create a map of permission_id -> permission string
+      const permissionIdToStringMap = {};
+      const resourceMap = {
+        // Map database resource names to frontend expected names
+        'purchase': 'purchases',
+        'consignment': 'consignments'
+      };
+
+      allPermissions.forEach(perm => {
+        // 1. First try: Direct match using permission_name if it's in format "resource.action"
+        if (perm.permission_name && perm.permission_name.includes('.')) {
+          permissionIdToStringMap[perm.permission_id] = perm.permission_name;
+          return;
+        }
+        
+        // 2. Second try: Transform old-style names with underscores to dot notation
+        if (perm.permission_name && perm.permission_name.includes('_')) {
+          const parts = perm.permission_name.split('_');
+          // Skip the "view_all_notifications" special case
+          if (parts.length === 2 || (parts.length === 3 && parts[0] !== 'view')) {
+            const action = parts[0];
+            const resource = parts.slice(1).join('_');
+            
+            // Special case for "manage_" permissions - map to more specific actions
+            if (action === 'manage') {
+              permissionIdToStringMap[perm.permission_id] = `${resource}.manage`;
+            } else {
+              permissionIdToStringMap[perm.permission_id] = `${resource}.${action}`;
+            }
+            return;
+          }
+        }
+        
+        // 3. Third try: Use action_name and resource_name with frontend naming conventions
+        if (perm.action_name && perm.resource_name) {
+          // Map resource names to frontend expected names if needed
+          const frontendResource = resourceMap[perm.resource_name] || perm.resource_name;
+          permissionIdToStringMap[perm.permission_id] = `${frontendResource}.${perm.action_name}`;
+          return;
+        }
+        
+        // 4. Last resort: Use boolean flags if all else fails
+        if (perm.can_view) {
+          const resource = resourceMap[perm.resource_name] || perm.resource_name;
+          permissionIdToStringMap[perm.permission_id] = `${resource}.view`;
+        } else if (perm.can_create) {
+          const resource = resourceMap[perm.resource_name] || perm.resource_name;
+          permissionIdToStringMap[perm.permission_id] = `${resource}.create`;
+        } else if (perm.can_edit) {
+          const resource = resourceMap[perm.resource_name] || perm.resource_name;
+          permissionIdToStringMap[perm.permission_id] = `${resource}.edit`;
+        } else if (perm.can_delete) {
+          const resource = resourceMap[perm.resource_name] || perm.resource_name;
+          permissionIdToStringMap[perm.permission_id] = `${resource}.delete`;
+        }
+      });
+
+      // Log the mapping for debugging
+      console.log('Created permission map with', Object.keys(permissionIdToStringMap).length, 'entries');
+      console.log('Sample mappings:', 
+        Object.entries(permissionIdToStringMap)
+          .slice(0, 5)
+          .map(([id, name]) => `${id}: ${name}`)
+      );
+      
+      // Now get permissions for each role
+      const formattedRoles = await Promise.all(roleData.map(async (role) => {
+        try {
+          // Get permissions for this specific role - select just the permission_id
+          const { data: rolePermissions, error: permError } = await supabase
+            .from('role_permissions')
+            .select('permission_id')
+            .eq('role_id', role.role_id);
+        
+          if (permError) throw permError;
+          
+          // Use our mapping to convert IDs to permission strings
+          const permissionStrings = rolePermissions
+            .map(rp => permissionIdToStringMap[rp.permission_id])
+            .filter(Boolean); // Remove any undefined values
+      
+          console.log(`Role ${role.role_name} has ${permissionStrings.length} permissions mapped`);
+          
+          return {
+            id: role.role_id,
+            name: role.role_name,
+            description: role.description || '',
+            staff_count: countMap[role.role_id] || 0,
+            permissions: permissionStrings,
+            created_at: role.created_at,
+            updated_at: role.updated_at
+          };
+        } catch (err) {
+          console.error(`Error fetching permissions for role ${role.role_name}:`, err);
+          return {
+            id: role.role_id,
+            name: role.role_name,
+            description: role.description || '',
+            staff_count: countMap[role.role_id] || 0,
+            permissions: [],
+            created_at: role.created_at,
+            updated_at: role.updated_at
+          };
+        }
       }));
       
       setRoles(formattedRoles);
@@ -736,6 +833,8 @@ export const useStaff = () => {
 
       // Handle permission updates by removing all and re-adding
       if (roleData.permissions) {
+        console.log(`Updating ${roleData.permissions.length} permissions for role ${roleData.name}`);
+        
         // First, remove existing permissions
         const { error: deleteError } = await supabase
           .from('role_permissions')
@@ -744,31 +843,99 @@ export const useStaff = () => {
           
         if (deleteError) {
           console.error('Error removing existing permissions:', deleteError);
-          // Continue anyway to try adding new permissions
         }
         
         if (roleData.permissions.length > 0) {
-          // Get all permissions to map permission strings to IDs
+          // Get all permissions for mapping
           const { data: allPermissions, error: permError } = await supabase
             .from('permissions')
-            .select('permission_id, resource_name, action_name');
+            .select('permission_id, permission_name, resource_name, action_name');
             
           if (permError) throw permError;
           
-          // Create a map of "resource.action" -> permission_id
+          // Print all incoming permissions for debugging
+          console.log('Permissions to assign:', roleData.permissions);
+          
+          // Print all available permissions in database
+          console.log('Available permissions in DB:', allPermissions.map(p => 
+            `ID: ${p.permission_id} | ${p.resource_name}.${p.action_name} | Name: ${p.permission_name}`
+          ).slice(0, 10));
+          
+          // Create a map for permission lookups with improved matching
           const permissionMap = {};
+
+          // First collect all permission IDs by ALL possible formats
           allPermissions.forEach(perm => {
-            const key = `${perm.resource_name}.${perm.action_name}`;
-            permissionMap[key] = perm.permission_id;
+            // Direct matches by permission_name
+            permissionMap[perm.permission_name] = perm.permission_id;
+            
+            // Handle legacy format (underscore notation)
+            if (perm.permission_name && perm.permission_name.includes('_')) {
+              const parts = perm.permission_name.split('_');
+              if (parts.length >= 2) {
+                const action = parts[0];
+                const resource = parts.slice(1).join('_');
+                permissionMap[`${resource}.${action}`] = perm.permission_id;
+              }
+            }
+            
+            // Handle resource_name and action_name combination
+            if (perm.resource_name && perm.action_name) {
+              // Direct standard format
+              permissionMap[`${perm.resource_name}.${perm.action_name}`] = perm.permission_id;
+              
+              // Handle singular/plural variations
+              const resourceMappings = {
+                'purchase': ['purchases', 'purchase'],
+                'purchases': ['purchases', 'purchase'],
+                'consignment': ['consignments', 'consignment'],
+                'consignments': ['consignments', 'consignment']
+              };
+              
+              const resourceVariants = resourceMappings[perm.resource_name] || [perm.resource_name];
+              
+              // Create entries for all variants
+              resourceVariants.forEach(variant => {
+                permissionMap[`${variant}.${perm.action_name}`] = perm.permission_id;
+              });
+              
+              // Add manage alias (manage permissions often include view/edit/etc.)
+              if (perm.action_name === 'manage') {
+                resourceVariants.forEach(variant => {
+                  // Map 'manage' to common operations
+                  permissionMap[`${variant}.view`] = perm.permission_id;
+                  permissionMap[`${variant}.edit`] = perm.permission_id;
+                  permissionMap[`${variant}.create`] = perm.permission_id;
+                  permissionMap[`${variant}.delete`] = perm.permission_id;
+                });
+              }
+            }
           });
           
-          // Create permission assignments
-          const rolePermissions = roleData.permissions
-            .filter(perm => permissionMap[perm])
-            .map(perm => ({
-              role_id: id,
-              permission_id: permissionMap[perm]
-            }));
+          // Debug: output number of mappings created
+          console.log(`Created ${Object.keys(permissionMap).length} permission mappings`);
+
+          // Now loop through role permissions and create role_permissions entries
+          const rolePermissions = [];
+          const matchedPermissions = [];
+          const unmatchedPermissions = [];
+
+          roleData.permissions.forEach(perm => {
+            if (permissionMap[perm]) {
+              matchedPermissions.push(perm);
+              rolePermissions.push({
+                role_id: id,
+                permission_id: permissionMap[perm]
+              });
+            } else {
+              unmatchedPermissions.push(perm);
+            }
+          });
+
+          console.log(`Matched ${matchedPermissions.length} permissions, couldn't match ${unmatchedPermissions.length} permissions`);
+          if (unmatchedPermissions.length > 0) {
+            console.log('Unmatched permissions:', unmatchedPermissions);
+          }
           
           if (rolePermissions.length > 0) {
             const { error: assignError } = await supabase
@@ -777,8 +944,14 @@ export const useStaff = () => {
               
             if (assignError) {
               console.error('Error assigning permissions to role:', assignError);
+              console.error('First few role permissions:', rolePermissions.slice(0, 3));
               toast.error('Role updated but some permissions could not be assigned');
+            } else {
+              console.log(`Successfully assigned ${rolePermissions.length} permissions to role`);
             }
+          } else {
+            console.error('No valid permissions to assign to role - this is likely a mapping problem');
+            toast.warning('No valid permissions found to assign to this role');
           }
         }
       }
@@ -786,14 +959,13 @@ export const useStaff = () => {
       toast.success(`Role "${roleData.name}" updated successfully!`);
       
       // Refresh roles
-      fetchRoles();
+      await fetchRoles();
       
       return {
         id: updatedRole.role_id,
         name: updatedRole.role_name,
         description: updatedRole.description,
         permissions: roleData.permissions || [],
-        staff_count: 0 // This will be updated by fetchRoles()
       };
     } catch (err) {
       console.error(`Error updating role with ID ${id}:`, err);

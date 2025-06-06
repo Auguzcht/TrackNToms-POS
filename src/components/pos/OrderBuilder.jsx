@@ -4,13 +4,16 @@ import Button from '../common/Button';
 import { useEffect } from 'react';
 
 const OrderBuilder = ({
-  order,
+  order = { items: [], subtotal: 0, tax: 0, total: 0 }, // Default value for order
   onUpdateQuantity,
   onRemoveItem,
   onClearOrder,
-  onCheckout
+  onCheckout,
+  onVoidSale,
+  lastCompletedSale
 }) => {
-  const hasItems = order.items.length > 0;
+  // Check if order and order.items exist before accessing length
+  const hasItems = order && order.items && order.items.length > 0;
   // Define checkout height to create proper boundary
   const checkoutHeight = 200;
   
@@ -30,7 +33,7 @@ const OrderBuilder = ({
   };
   
   return (
-    <Card className="h-full relative flex flex-col" style={{ height: "618px", maxHeight: "618px" }}>
+    <Card className="h-full flex flex-col">
       {/* Header section with enhanced styling */}
       <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#571C1F]/10 flex-shrink-0">
         <h2 className="text-lg font-bold text-[#571C1F] flex items-center">
@@ -171,12 +174,12 @@ const OrderBuilder = ({
               animate={{ opacity: 1 }}
               className="text-[#571C1F] font-medium"
             >
-              ₱{order.subtotal.toFixed(2)}
+              ₱{(order.subtotal || 0).toFixed(2)}
             </motion.span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[#571C1F]/70">Tax (12%)</span>
-            <span className="text-[#571C1F]">₱{order.tax.toFixed(2)}</span>
+            <span className="text-[#571C1F]">₱{(order.tax || 0).toFixed(2)}</span>
           </div>
           <div className="flex justify-between font-medium text-base border-t border-dashed border-[#571C1F]/10 mt-1.5 pt-2">
             <span className="text-[#571C1F]">Total</span>
@@ -186,7 +189,7 @@ const OrderBuilder = ({
               animate={{ scale: 1 }}
               className="text-[#571C1F] font-bold"
             >
-              ₱{order.total.toFixed(2)}
+              ₱{(order.total || 0).toFixed(2)}
             </motion.span>
           </div>
         </div>
@@ -217,6 +220,51 @@ const OrderBuilder = ({
             </motion.button>
           )}
         </div>
+      </div>
+      
+      {/* Add a void sale button near the checkout button */}
+      <div className="px-3 pt-2 pb-3 mt-auto">
+        <div className="flex justify-between mb-2">
+          <button 
+            onClick={onVoidSale}
+            className="px-3 py-1.5 text-sm font-medium text-[#571C1F] hover:bg-[#FFF6F2] rounded-md border border-[#571C1F]/20 flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            {lastCompletedSale ? 'Void Last Sale' : 'Void Sale'}
+          </button>
+          
+          <button
+            onClick={onClearOrder}
+            disabled={!hasItems}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md border flex items-center ${
+              hasItems 
+                ? 'text-[#571C1F] border-[#571C1F]/20 hover:bg-[#FFF6F2]' 
+                : 'text-gray-400 border-gray-200 cursor-not-allowed'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Clear
+          </button>
+        </div>
+
+        <button
+          onClick={onCheckout}
+          disabled={!hasItems}
+          className={`w-full py-3 px-4 rounded-lg font-medium shadow-md flex items-center justify-center ${
+            hasItems 
+              ? 'text-white bg-[#571C1F] hover:bg-[#4A1519]' 
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          <span>Checkout</span>
+          <svg xmlns="http://www.w3.org/2000/svg" className="ml-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </button>
       </div>
     </Card>
   );

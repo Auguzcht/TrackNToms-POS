@@ -14,7 +14,10 @@ const SalesContext = createContext(null);
  */
 export const SalesProvider = ({ children }) => {
   const { user } = useAuth();
-  const { deductIngredientsForSale, checkIngredientAvailability } = useInventory();
+  const { 
+    checkIngredientAvailability, 
+    processItemSale  
+  } = useInventory();
   
   const [sales, setSales] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -252,6 +255,86 @@ export const SalesProvider = ({ children }) => {
   }, []);
 
   /**
+   * Fetch a single sale by ID
+   * @param {number|string} id - Sale ID
+   * @returns {Object|null} Sale with items or null if not found
+   */
+  const fetchSale = useCallback(async (id) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Get the sale header
+      const { data: saleHeader, error: saleError } = await supabase
+        .from('sales_header')
+        .select(`
+          *,
+          cashier:cashier_id (
+            user_id,
+            first_name, 
+            last_name
+          )
+        `)
+        .eq('sale_id', id)
+        .single();
+      
+      if (saleError) {
+        if (saleError.code === 'PGRST116') {
+          // No rows returned - sale not found
+          return null;
+        }
+        throw saleError;
+      }
+      
+      if (!saleHeader) {
+        return null;
+      }
+      
+      // Get the sale items
+      const { data: items, error: itemsError } = await supabase
+        .from('sales_detail')
+        .select(`
+          *,
+          items:item_id (
+            item_id,
+            item_name,
+            category,
+            base_price
+          )
+        `)
+        .eq('sale_id', id);
+      
+      if (itemsError) throw itemsError;
+      
+      // Format items with item details
+      const formattedItems = items.map(item => ({
+        id: item.sale_detail_id,
+        item_id: item.item_id,
+        name: item.items?.item_name || 'Unknown Item',
+        category: item.items?.category || 'Uncategorized',
+        price: parseFloat(item.unit_price),
+        quantity: item.quantity,
+        subtotal: parseFloat(item.subtotal)
+      }));
+      
+      // Return the full sale with items
+      return {
+        ...saleHeader,
+        items: formattedItems,
+        cashier_name: saleHeader.cashier ? 
+          `${saleHeader.cashier.first_name} ${saleHeader.cashier.last_name}` : 
+          'Unknown'
+      };
+    } catch (err) {
+      console.error(`Error fetching sale with ID ${id}:`, err);
+      setError(`Failed to fetch sale with ID ${id}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
    * Get sales grouped by category
    * @param {Array} salesData - Sales data or null to use current state
    * @returns {Object} Sales by category
@@ -351,88 +434,123 @@ export const SalesProvider = ({ children }) => {
       // First, check if all items are available in inventory
       for (const item of saleData.items) {
         const { available, message } = await checkIngredientAvailability(item.item_id, item.quantity);
-        
         if (!available) {
           throw new Error(message || `Item ${item.item_id} is not available in requested quantity`);
         }
       }
 
-      // Extract items array from the sale data
-      const { items, ...saleHeader } = saleData;
+      // Format data for the database transaction
+      const formattedItems = saleData.items.map(item => ({
+        item_id: item.item_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price || item.price || 0,
+        subtotal: item.subtotal || (item.quantity * (item.unit_price || item.price || 0))
+      }));
+
+      let result;
       
-      // Add timestamps to sale header
-      const headerWithTimestamps = {
-        ...saleHeader,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      // Insert sale header
-      const { data: newSale, error: saleError } = await supabase
-        .from('sales_header')
-        .insert([headerWithTimestamps])
-        .select()
-        .single();
-      
-      if (saleError) throw saleError;
-      
-      if (items && items.length > 0) {
-        // Prepare items for insertion (add sale_id to each)
-        const itemsWithSaleId = items.map(item => ({
-          sale_id: newSale.sale_id,
-          item_id: item.item_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price || 0,
-          subtotal: item.subtotal || (item.quantity * item.unit_price),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
+      try {
+        // Try using the RPC function first
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('process_sale', {
+          p_cashier_id: saleData.cashier_id, // This is now the auth user's UUID
+          p_sale_date: saleData.sale_date,
+          p_payment_method: saleData.payment_method,
+          p_total_amount: saleData.total_amount,
+          p_items: formattedItems
+        });
         
-        // Insert sale items
-        const { error: itemsError } = await supabase
-          .from('sales_detail')
-          .insert(itemsWithSaleId);
+        if (rpcError) throw rpcError;
         
-        if (itemsError) {
-          // Critical error - items couldn't be inserted, need to rollback
-          console.error('Error adding sale items - attempting to rollback sale:', itemsError);
+        if (!rpcResult.success) {
+          throw new Error(rpcResult.message || 'Failed to process sale');
+        }
+        
+        result = {
+          sale_id: rpcResult.sale_id,
+          success: true
+        };
+      } catch (rpcErr) {
+        console.warn('RPC sale processing failed, falling back to JS implementation:', rpcErr);
+        
+        // Fallback to the old method if RPC fails
+        // Extract items array from the sale data
+        const { items, ...saleHeader } = saleData;
+        
+        // Add timestamps to sale header
+        const headerWithTimestamps = {
+          ...saleHeader,
+          staff_id: saleHeader.staff_id, // Use staff_id 
+          created_at: new Date().toISOString()
+        };
+        
+        // Insert sale header
+        const { data: newSale, error: saleError } = await supabase
+          .from('sales_header')
+          .insert([headerWithTimestamps])
+          .select()
+          .single();
+        
+        if (saleError) throw saleError;
+        
+        if (items && items.length > 0) {
+          // Prepare items for insertion (add sale_id to each)
+          const itemsWithSaleId = items.map(item => ({
+            sale_id: newSale.sale_id,
+            item_id: item.item_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price || item.price || 0,
+            subtotal: item.subtotal || (item.quantity * (item.unit_price || item.price || 0)),
+            created_at: new Date().toISOString()
+          }));
           
-          // Try to delete the sale header as a rollback operation
-          const { error: deleteError } = await supabase
-            .from('sales_header')
-            .delete()
-            .eq('sale_id', newSale.sale_id);
+          // Insert sale items
+          const { error: itemsError } = await supabase
+            .from('sales_detail')
+            .insert(itemsWithSaleId);
+          
+          if (itemsError) {
+            console.error('Error adding sale items - attempting to rollback sale:', itemsError);
             
-          if (deleteError) {
-            console.error('Error during rollback of sale header:', deleteError);
+            // Try to delete the sale header as a rollback operation
+            await supabase
+              .from('sales_header')
+              .delete()
+              .eq('sale_id', newSale.sale_id);
+              
+            throw new Error(`Failed to add sale items: ${itemsError.message}`);
           }
           
-          throw new Error(`Failed to add sale items: ${itemsError.message}`);
+          // Now deduct from inventory using the hook function
+          try {
+            await processItemSale(items.map(item => ({
+              item_id: item.item_id,
+              quantity: item.quantity
+            })));
+          } catch (inventoryError) {
+            console.error('Error updating inventory:', inventoryError);
+            toast.warning('Sale completed but inventory update may be incomplete');
+          }
         }
-      }
-      
-      // Now deduct from inventory - this should be done in a transaction or with triggers
-      // Here we're handling it in the application
-      try {
-        await deductIngredientsForSale(items.map(item => ({
-          item_id: item.item_id,
-          quantity: item.quantity
-        })));
-      } catch (inventoryError) {
-        console.error('Error updating inventory:', inventoryError);
-        // Continue despite inventory update error - this will need reconciliation later
-        toast.warning('Sale completed but inventory update may be incomplete');
+        
+        result = {
+          sale_id: newSale.sale_id,
+          success: true
+        };
       }
       
       // Return the new sale with its ID
-      const result = {
+      const newSaleData = {
         ...saleData,
-        sale_id: newSale.sale_id,
-        created_at: newSale.created_at
+        sale_id: result.sale_id,
+        created_at: new Date().toISOString()
       };
       
-      toast.success(`Sale #${newSale.sale_id} completed successfully!`);
-      return result;
+      toast.success(`Sale #${result.sale_id} completed successfully!`);
+      
+      // Add to local state
+      setSales(prev => [newSaleData, ...prev]);
+      
+      return newSaleData;
     } catch (err) {
       console.error('Error creating sale:', err);
       setError('Failed to create sale');
@@ -441,7 +559,7 @@ export const SalesProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [checkIngredientAvailability, deductIngredientsForSale]);
+  }, [user, checkIngredientAvailability, processItemSale]);
 
   /**
    * Void a sale (mark as voided, not delete)
@@ -631,6 +749,7 @@ export const SalesProvider = ({ children }) => {
     salesStats,
     formatCurrency,
     fetchSales,
+    fetchSale, // Add the new function here
     fetchSalesAnalytics,
     fetchTopProducts,
     getSalesByCategory,
@@ -680,6 +799,7 @@ export const useSales = () => {
     
     // Data retrieval methods
     fetchSales: context.fetchSales,
+    fetchSale: context.fetchSale, // Add the new function here
     fetchSalesAnalytics: context.fetchSalesAnalytics,
     fetchTopProducts: context.fetchTopProducts,
     getSalesByCategory: context.getSalesByCategory,

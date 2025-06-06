@@ -665,7 +665,7 @@ const PaymentForm = ({
                   type="text"
                   value={cashAmount}
                   onChange={onCashAmountChange}
-                  className="flex-1 px-3 py-2 focus:outline-none text-right text-[#571C1F]"
+                  className="flex-1 px-3 py-2 focus:outline-none text-right text-[#ffffff]"
                   placeholder="Enter amount"
                 />
               </div>
