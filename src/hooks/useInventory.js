@@ -89,7 +89,7 @@ export const useInventory = () => {
         { 
           event: '*', 
           schema: 'public', 
-          table: 'pullouts' 
+          table: 'pullout' // Changed from 'pullouts' to 'pullout' to match actual table name
         }, 
         (payload) => {
           console.log('Pullouts change received:', payload);
@@ -177,16 +177,59 @@ export const useInventory = () => {
     setLoading(true);
     setError(null);
     try {
-      // Get detailed pullout data with staff information
-      const { data, error: pulloutsError } = await supabase
-        .from('pullouts_with_staff')  // Using a view that joins pullouts with staff info
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Step 1: Fetch pullouts with ingredients (this join works)
+      const { data: pulloutsData, error: pulloutsError } = await supabase
+        .from('pullout')
+        .select(`
+          *,
+          ingredients:ingredient_id (ingredient_id, name, unit)
+        `)
+        .order('date_of_pullout', { ascending: false });
       
       if (pulloutsError) throw pulloutsError;
       
-      setPullouts(data || []);
-      return data || [];
+      // Step 2: Fetch all staff for mapping UUIDs to staff info
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff')
+        .select('user_id, staff_id, first_name, last_name, email, role_id');
+      
+      if (staffError) throw staffError;
+      
+      // Step 3: Create a map of auth user IDs to staff info
+      const staffMap = {};
+      if (staffData) {
+        staffData.forEach(staff => {
+          if (staff.user_id) {
+            staffMap[staff.user_id] = staff;
+          }
+        });
+      }
+      
+      // Step 4: Map the data together
+      const formattedData = pulloutsData.map(pullout => {
+        // Look up staff info using requested_by UUID
+        const requestedByStaff = staffMap[pullout.requested_by] || null;
+        const approvedByStaff = staffMap[pullout.approved_by] || null;
+        
+        return {
+          ...pullout,
+          // Include original staff references (for compatibility)
+          staff: requestedByStaff,
+          managers: approvedByStaff,
+          
+          // Add computed fields for easy access
+          staffName: requestedByStaff ? 
+            `${requestedByStaff.first_name} ${requestedByStaff.last_name}` : 
+            'Unknown User',
+          managerName: approvedByStaff ? 
+            `${approvedByStaff.first_name} ${approvedByStaff.last_name}` : 
+            null,
+          ingredientName: pullout.ingredients?.name || 'Unknown'
+        };
+      });
+      
+      setPullouts(formattedData || []);
+      return formattedData || [];
     } catch (err) {
       console.error('Error fetching pullouts:', err);
       setError('Failed to fetch pullouts');
@@ -221,6 +264,30 @@ export const useInventory = () => {
       setLoading(false);
     }
   }, [fetchIngredients, fetchItems, fetchPullouts]);
+
+  // Fetch inventory data only (no pullouts)
+  const fetchInventoryOnly = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const [ingredientsData, itemsData] = await Promise.all([
+        fetchIngredients(),
+        fetchItems()
+      ]);
+      
+      return { 
+        ingredients: ingredientsData, 
+        items: itemsData
+      };
+    } catch (err) {
+      console.error('Error fetching inventory:', err);
+      setError(err.message || 'Failed to fetch inventory');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchIngredients, fetchItems]);
 
   // Add a new ingredient
   const addIngredient = useCallback(async (ingredientData) => {
@@ -447,43 +514,36 @@ export const useInventory = () => {
         throw new Error('Not enough quantity available for this pullout');
       }
 
-      // Format pullout data
+      // Format pullout data - use requested_by and approved_by fields
       const pullout = {
         ingredient_id: pulloutData.ingredient_id,
         quantity: pulloutData.quantity,
         reason: pulloutData.reason,
-        staff_id: pulloutData.staff_id || user?.staff_id,
+        requested_by: pulloutData.requested_by || user?.id, // Use user ID directly
+        date_of_pullout: pulloutData.date_of_pullout || new Date().toISOString().split('T')[0],
         status: 'pending', // Default status is pending
-        date_of_pullout: pulloutData.date_of_pullout || new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
       
+      // Add approved_by if present
+      if (pulloutData.approved_by) {
+        pullout.approved_by = pulloutData.approved_by;
+        pullout.status = 'approved';
+      }
+      
       // Create the pullout record
       const { data: newPullout, error: pulloutError } = await supabase
-        .from('pullouts')
+        .from('pullout')
         .insert(pullout)
         .select()
         .single();
       
       if (pulloutError) throw pulloutError;
       
-      // If manager approval is included, approve it immediately
-      if (pulloutData.manager_id) {
-        const { data: approvedPullout, error: approveError } = await supabase
-          .from('pullouts')
-          .update({
-            manager_id: pulloutData.manager_id,
-            status: 'approved',
-            updated_at: new Date().toISOString()
-          })
-          .eq('pullout_id', newPullout.pullout_id)
-          .select()
-          .single();
-        
-        if (approveError) throw approveError;
-        
-        // Update ingredient quantity
+      // If manager approval is included, approve it immediately and update inventory
+      if (pulloutData.approved_by) {
+        // Update the ingredient quantity
         const { error: updateError } = await supabase
           .from('ingredients')
           .update({ 
@@ -495,10 +555,11 @@ export const useInventory = () => {
         if (updateError) throw updateError;
         
         toast.success('Pullout record created and approved');
-        return approvedPullout;
+      } else {
+        toast.success('Pullout record created successfully!');
       }
       
-      toast.success('Pullout record created successfully!');
+      // Return created pullout
       return newPullout;
     } catch (err) {
       console.error('Error creating pullout:', err);
@@ -508,7 +569,7 @@ export const useInventory = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.staff_id]);
+  }, [user?.id]);
 
   // Update a pullout record
   const updatePullout = useCallback(async (id, pulloutData) => {
@@ -518,7 +579,7 @@ export const useInventory = () => {
     try {
       // Get original pullout
       const { data: originalPullout, error: fetchError } = await supabase
-        .from('pullouts')
+        .from('pullout') // Changed from 'pullouts' to 'pullout'
         .select('*')
         .eq('pullout_id', id)
         .single();
@@ -558,7 +619,7 @@ export const useInventory = () => {
       
       // Update the pullout
       const { data: updatedPullout, error: updateError } = await supabase
-        .from('pullouts')
+        .from('pullout')
         .update(updateData)
         .eq('pullout_id', id)
         .select()
@@ -586,7 +647,7 @@ export const useInventory = () => {
     try {
       // Check if pullout is already approved - can't delete approved pullouts
       const { data: pullout, error: fetchError } = await supabase
-        .from('pullouts')
+        .from('pullout') // Changed from pullouts to pullout
         .select('status')
         .eq('pullout_id', id)
         .single();
@@ -599,11 +660,14 @@ export const useInventory = () => {
       
       // Delete the pullout
       const { error: deleteError } = await supabase
-        .from('pullouts')
+        .from('pullout') // Changed from pullouts to pullout
         .delete()
         .eq('pullout_id', id);
       
       if (deleteError) throw deleteError;
+      
+      // Update local state
+      setPullouts(prev => prev.filter(p => p.pullout_id !== id));
       
       toast.success('Pullout record deleted successfully!');
       return true;
@@ -625,7 +689,7 @@ export const useInventory = () => {
     try {
       // Begin by getting the pullout information
       const { data: pullout, error: pulloutError } = await supabase
-        .from('pullouts')
+        .from('pullout') // CORRECT: Using 'pullout' (singular)
         .select('*, ingredients:ingredient_id(quantity)')
         .eq('pullout_id', id)
         .single();
@@ -641,11 +705,12 @@ export const useInventory = () => {
         throw new Error('Not enough quantity available for this pullout');
       }
       
-      // Approve the pullout
+      // FIXED: Changed from 'pullouts' to 'pullout'
+      // FIXED: Changed manager_id to approved_by
       const { data: approvedPullout, error: approveError } = await supabase
-        .from('pullouts')
+        .from('pullout') // FIXED: Changed from 'pullouts' to 'pullout'
         .update({
-          manager_id: managerId,
+          approved_by: managerId, // FIXED: Changed from manager_id to approved_by
           status: 'approved',
           updated_at: new Date().toISOString()
         })
@@ -667,6 +732,13 @@ export const useInventory = () => {
       
       if (updateError) throw updateError;
       
+      // Also update the local state
+      setPullouts(prevPullouts => 
+        prevPullouts.map(p => 
+          p.pullout_id === id ? {...p, status: 'approved', approved_by: managerId} : p
+        )
+      );
+      
       toast.success('Pullout record approved successfully!');
       return approvedPullout;
     } catch (err) {
@@ -685,9 +757,9 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Check if pullout is still pending
+      // Check if pullout is still pending - THIS LINE IS INCORRECT
       const { data: pullout, error: pulloutError } = await supabase
-        .from('pullouts')
+        .from('pullout') // Changed from 'pullouts' to 'pullout'
         .select('status')
         .eq('pullout_id', id)
         .single();
@@ -698,9 +770,9 @@ export const useInventory = () => {
         throw new Error(`This pullout is already ${pullout.status}`);
       }
       
-      // Reject the pullout
+      // Reject the pullout - THIS LINE IS INCORRECT
       const { data: rejectedPullout, error: rejectError } = await supabase
-        .from('pullouts')
+        .from('pullout') // Changed from 'pullouts' to 'pullout'
         .update({
           manager_id: managerId,
           status: 'rejected',
@@ -731,23 +803,68 @@ export const useInventory = () => {
     setError(null);
     
     try {
-      // Check if we have it locally
+      // Check if we have it locally first
       const localPullout = pullouts.find(p => p.pullout_id === parseInt(id));
       
       if (localPullout) {
         return localPullout;
       }
       
-      // Fetch from database with related data
-      const { data, error: pulloutError } = await supabase
-        .from('pullouts_with_staff')  // View that joins pullouts with staff info
-        .select('*')
+      // If not found locally, fetch from the database
+      const { data: pullout, error: pulloutError } = await supabase
+        .from('pullout')
+        .select(`
+          *,
+          ingredients:ingredient_id (ingredient_id, name, unit)
+        `)
         .eq('pullout_id', id)
         .single();
       
       if (pulloutError) throw pulloutError;
       
-      return data;
+      // Fetch staff info separately
+      let requestedByStaff = null;
+      let approvedByStaff = null;
+      
+      if (pullout.requested_by || pullout.approved_by) {
+        const userIds = [pullout.requested_by, pullout.approved_by].filter(Boolean);
+        
+        // Get staff info for these user IDs
+        if (userIds.length > 0) {
+          const { data: staffData } = await supabase
+            .from('staff')
+            .select('user_id, staff_id, first_name, last_name, email')
+            .in('user_id', userIds);
+          
+          if (staffData) {
+            const staffMap = {};
+            staffData.forEach(staff => {
+              if (staff.user_id) {
+                staffMap[staff.user_id] = staff;
+              }
+            });
+            
+            requestedByStaff = staffMap[pullout.requested_by] || null;
+            approvedByStaff = staffMap[pullout.approved_by] || null;
+          }
+        }
+      }
+      
+      // Format the pullout with staff info
+      const formattedPullout = {
+        ...pullout,
+        staff: requestedByStaff,
+        managers: approvedByStaff,
+        staffName: requestedByStaff ? 
+          `${requestedByStaff.first_name} ${requestedByStaff.last_name}` : 
+          'Unknown User',
+        managerName: approvedByStaff ? 
+          `${approvedByStaff.first_name} ${approvedByStaff.last_name}` : 
+          null,
+        ingredientName: pullout.ingredients?.name || 'Unknown'
+      };
+      
+      return formattedPullout;
     } catch (err) {
       console.error(`Error fetching pullout with ID ${id}:`, err);
       setError(`Failed to fetch pullout with ID ${id}`);
@@ -970,6 +1087,48 @@ export const useInventory = () => {
     }
   }, []);
 
+  // Get suppliers for an ingredient
+  const getIngredientSuppliers = useCallback(async (ingredientId) => {
+    try {
+      const { data, error } = await supabase
+        .from('ingredient_suppliers')
+        .select(`
+          *,
+          suppliers:supplier_id (supplier_id, company_name, contact_person, contact_phone)
+        `)
+        .eq('ingredient_id', ingredientId);
+        
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error(`Error fetching suppliers for ingredient ${ingredientId}:`, err);
+      return [];
+    }
+  }, []);
+
+  // Add preferred supplier for ingredient
+  const setPreferredSupplier = useCallback(async (ingredientId, supplierId) => {
+    try {
+      // Reset all to false first
+      await supabase
+        .from('ingredient_suppliers')
+        .update({ is_preferred: false })
+        .eq('ingredient_id', ingredientId);
+        
+      // Set selected one to true
+      await supabase
+        .from('ingredient_suppliers')
+        .update({ is_preferred: true })
+        .eq('ingredient_id', ingredientId)
+        .eq('supplier_id', supplierId);
+        
+      return true;
+    } catch (err) {
+      console.error(`Error setting preferred supplier for ingredient ${ingredientId}:`, err);
+      return false;
+    }
+  }, []);
+
   return {
     ingredients,
     items,
@@ -977,6 +1136,7 @@ export const useInventory = () => {
     loading,
     error,
     fetchInventory,
+    fetchInventoryOnly, // Add this here
     fetchIngredients,
     fetchItems,
     fetchPullouts,
@@ -996,7 +1156,9 @@ export const useInventory = () => {
     updateItemIngredients,
     checkIngredientAvailability,
     deductIngredientsForSale,
-    recipeIngredients
+    recipeIngredients,
+    getIngredientSuppliers,
+    setPreferredSupplier
   };
 };
 

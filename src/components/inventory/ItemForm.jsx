@@ -6,8 +6,9 @@ import FileUpload from '../common/FileUpload';
 import { motion } from 'framer-motion';
 
 const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
-  const { addItem, updateItem } = useInventory();
+  const { addItem, updateItem, fetchItemIngredients, updateItemIngredients } = useInventory();
   const [loading, setLoading] = useState(false);
+  const [loadingRecipe, setLoadingRecipe] = useState(false);
   const [form, setForm] = useState({
     item_name: '',
     category: 'Coffee',
@@ -17,6 +18,11 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
   });
   const [imageUrl, setImageUrl] = useState('');
   const [imagePath, setImagePath] = useState('');
+  
+  // State for recipe ingredients
+  const [recipeIngredients, setRecipeIngredients] = useState([
+    { ingredient_id: '', quantity: '' }
+  ]);
   
   // Set form data if editing an existing item
   useEffect(() => {
@@ -29,8 +35,63 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
         is_externally_sourced: item.is_externally_sourced || false
       });
       setImageUrl(item.image || '');
+      
+      // Load recipe ingredients if it's not an externally sourced item
+      if (item.item_id && !item.is_externally_sourced) {
+        loadRecipeIngredients(item.item_id);
+      }
     }
   }, [item]);
+  
+  // Load existing recipe ingredients
+  const loadRecipeIngredients = async (itemId) => {
+    try {
+      setLoadingRecipe(true);
+      const recipe = await fetchItemIngredients(itemId);
+      
+      if (recipe && recipe.length > 0) {
+        // Transform to match our state structure
+        const formattedRecipe = recipe.map(ing => ({
+          ingredient_id: ing.ingredient_id.toString(),
+          quantity: ing.quantity_per_item.toString()
+        }));
+        setRecipeIngredients(formattedRecipe);
+      }
+    } catch (error) {
+      console.error('Error loading recipe:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Failed to load recipe ingredients'
+      });
+    } finally {
+      setLoadingRecipe(false);
+    }
+  };
+
+  // Handle adding a new ingredient row
+  const addIngredientToRecipe = () => {
+    setRecipeIngredients([...recipeIngredients, { ingredient_id: '', quantity: '' }]);
+  };
+
+  // Handle removing an ingredient
+  const removeIngredientFromRecipe = (index) => {
+    if (recipeIngredients.length === 1) {
+      // Keep at least one empty row
+      setRecipeIngredients([{ ingredient_id: '', quantity: '' }]);
+    } else {
+      const updated = [...recipeIngredients];
+      updated.splice(index, 1);
+      setRecipeIngredients(updated);
+    }
+  };
+
+  // Handle ingredient field changes
+  const handleRecipeIngredientChange = (index, field, value) => {
+    const updated = [...recipeIngredients];
+    updated[index][field] = value;
+    setRecipeIngredients(updated);
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -38,12 +99,38 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    
+    // If externally sourced is checked, reset recipe ingredients
+    if (name === 'is_externally_sourced' && checked) {
+      setRecipeIngredients([{ ingredient_id: '', quantity: '' }]);
+    }
   };
 
   const validateForm = () => {
     if (!form.item_name) return "Name is required";
     if (!form.base_price) return "Price is required";
     if (parseFloat(form.base_price) <= 0) return "Price must be greater than zero";
+    
+    // Validate recipe if not externally sourced
+    if (!form.is_externally_sourced) {
+      // Check if at least one valid ingredient
+      const hasValidIngredient = recipeIngredients.some(ing => 
+        ing.ingredient_id && parseFloat(ing.quantity) > 0
+      );
+      
+      if (!hasValidIngredient) {
+        return "Add at least one ingredient to the recipe with a valid quantity";
+      }
+      
+      // Check for invalid quantities
+      for (let i = 0; i < recipeIngredients.length; i++) {
+        const ing = recipeIngredients[i];
+        if (ing.ingredient_id && (!ing.quantity || parseFloat(ing.quantity) <= 0)) {
+          return `Ingredient #${i + 1} has an invalid quantity`;
+        }
+      }
+    }
+    
     return null;
   };
 
@@ -62,23 +149,60 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
 
     setLoading(true);
     
-    // Convert numeric strings to actual numbers
-    const formattedData = {
-      ...form,
-      base_price: parseFloat(form.base_price),
-      image: imageUrl || form.image
-    };
-
     try {
+      const formattedData = {
+        ...form,
+        base_price: parseFloat(form.base_price),
+        image: imageUrl || form.image
+      };
+      
+      let result;
+      
       if (item) {
-        await updateItem(item.item_id, formattedData);
+        // Update existing item
+        result = await updateItem(item.item_id, formattedData);
+        
+        // Update recipe if not externally sourced
+        if (!form.is_externally_sourced) {
+          // Filter out incomplete ingredients
+          const validIngredients = recipeIngredients.filter(
+            ing => ing.ingredient_id && ing.quantity
+          );
+          
+          // Format recipe for API
+          const formattedRecipe = validIngredients.map(ing => ({
+            ingredient_id: parseInt(ing.ingredient_id),
+            quantity: parseFloat(ing.quantity)
+          }));
+          
+          await updateItemIngredients(item.item_id, formattedRecipe);
+        }
+        
         Swal.fire({
           icon: 'success',
           title: 'Success',
           text: 'Menu item updated successfully'
         });
       } else {
-        await addItem(formattedData);
+        // Create new item
+        result = await addItem(formattedData);
+        
+        // Add recipe if not externally sourced and if item was created successfully
+        if (!form.is_externally_sourced && result) {
+          // Filter out incomplete ingredients
+          const validIngredients = recipeIngredients.filter(
+            ing => ing.ingredient_id && ing.quantity
+          );
+          
+          // Format recipe for API
+          const formattedRecipe = validIngredients.map(ing => ({
+            ingredient_id: parseInt(ing.ingredient_id),
+            quantity: parseFloat(ing.quantity)
+          }));
+          
+          await updateItemIngredients(result.item_id, formattedRecipe);
+        }
+        
         Swal.fire({
           icon: 'success',
           title: 'Success',
@@ -86,7 +210,8 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
         });
       }
       
-      onSubmit();
+      // Immediately pass back the result to trigger list refresh
+      onSubmit(result);
     } catch (error) {
       Swal.fire({
         icon: 'error',
@@ -98,6 +223,7 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
     }
   };
 
+  // Image handling functions remain the same
   const handleImageUploadComplete = (result) => {
     setImageUrl(result.url);
     setImagePath(result.path);
@@ -121,10 +247,22 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
     setForm(prev => ({ ...prev, image: '' }));
   };
 
+  // Helper to get ingredient name by ID
+  const getIngredientName = (id) => {
+    const ingredient = ingredients.find(i => i.ingredient_id.toString() === id);
+    return ingredient ? ingredient.name : '';
+  };
+
+  // Helper to get ingredient unit by ID
+  const getIngredientUnit = (id) => {
+    const ingredient = ingredients.find(i => i.ingredient_id.toString() === id);
+    return ingredient ? ingredient.unit : '';
+  };
+
   return (
     <form onSubmit={handleSubmit} className="w-full overflow-visible">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
-        {/* Product Image Section */}
+        {/* Product Image Section - unchanged */}
         <div className="md:col-span-1 h-full">
           <motion.div 
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col"
@@ -156,7 +294,7 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
           </motion.div>
         </div>
         
-        {/* Product Details Section */}
+        {/* Product Details Section - unchanged */}
         <div className="md:col-span-2 h-full">
           <motion.div 
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col"
@@ -257,7 +395,7 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
           </motion.div>
         </div>
 
-        {/* Recipe Section - conditionally shown */}
+        {/* Recipe Section - Enhanced with ingredient management */}
         {!form.is_externally_sourced && (
           <motion.div 
             className="md:col-span-3"
@@ -274,25 +412,86 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    Swal.fire({
-                      title: 'Recipe functionality',
-                      text: 'Recipe ingredients management would be implemented here',
-                      icon: 'info'
-                    });
-                  }}
+                  onClick={addIngredientToRecipe}
+                  className="flex items-center"
                 >
-                  Manage Recipe
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Add Ingredient
                 </Button>
               </div>
               
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md border border-gray-200 dark:border-gray-600">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  This section allows you to define ingredients and their quantities needed to create this item.
-                  <br />
-                  <span className="italic mt-2 block">Currently no ingredients have been added to this recipe.</span>
-                </p>
-              </div>
+              {loadingRecipe ? (
+                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md flex items-center justify-center">
+                  <svg className="animate-spin h-5 w-5 text-[#571C1F] mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Loading recipe...</span>
+                </div>
+              ) : recipeIngredients.length > 0 ? (
+                <div className="space-y-4">
+                  {recipeIngredients.map((ing, index) => (
+                    <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
+                      <div className="flex justify-between mb-2">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Ingredient #{index + 1}
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => removeIngredientFromRecipe(index)}
+                          className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-[#571C1F] dark:text-gray-300">
+                            Ingredient
+                          </label>
+                          <select
+                            value={ing.ingredient_id}
+                            onChange={(e) => handleRecipeIngredientChange(index, 'ingredient_id', e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          >
+                            <option value="">Select an ingredient</option>
+                            {ingredients.map(ing => (
+                              <option key={ing.ingredient_id} value={ing.ingredient_id}>
+                                {ing.name} ({ing.unit})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#571C1F] dark:text-gray-300">
+                            Quantity {ing.ingredient_id ? `(${getIngredientUnit(ing.ingredient_id)})` : ''}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={ing.quantity}
+                            onChange={(e) => handleRecipeIngredientChange(index, 'quantity', e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md border border-gray-200 dark:border-gray-600">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    This section allows you to define ingredients and their quantities needed to create this item.
+                    <br />
+                    <span className="italic mt-2 block">No ingredients have been added to this recipe yet.</span>
+                  </p>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -315,7 +514,7 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
         <Button
           type="submit"
           variant="primary"
-          disabled={loading}
+          disabled={loading || loadingRecipe}
         >
           {loading ? (
             <span className="flex items-center">

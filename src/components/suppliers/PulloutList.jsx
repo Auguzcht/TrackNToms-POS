@@ -5,10 +5,14 @@ import Card from '../common/Card';
 import Modal from '../common/Modal';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
-import PulloutForm from './PulloutForm'; // Fix the import path - it should be relative to current directory
+import Swal from 'sweetalert2'; // Add this import
+import PulloutForm from './PulloutForm';
+import { useAuth } from '../../hooks/useAuth';
+import { usePermissions } from '../../hooks/usePermissions';
+import { useInventory } from '../../hooks/useInventory';
 
 // Filter component for pullout list
-const PulloutFilters = ({ filters, setFilters, ingredients, managers }) => {
+const PulloutFilters = ({ filters, setFilters, ingredients }) => {
   return (
     <div className="flex flex-wrap gap-4 mb-4 items-center">
       {/* Search Filter */}
@@ -83,13 +87,15 @@ const PulloutFilters = ({ filters, setFilters, ingredients, managers }) => {
 const PulloutList = ({ 
   pullouts = [], 
   ingredients = [],
-  managers = [],
   loading = false, 
   onEdit, 
   onDelete, 
   onRefresh,
   canManage = true,
-  useExternalModals = false  // Add this prop
+  canApprovePullouts = false, // Add this prop
+  useExternalModals = false,
+  onAdd,
+  currentUser = null
 }) => {
   const [filteredPullouts, setFilteredPullouts] = useState([]);
   const [filters, setFilters] = useState({
@@ -108,6 +114,16 @@ const PulloutList = ({
   const [currentPullout, setCurrentPullout] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pulloutToDelete, setPulloutToDelete] = useState(null);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [pulloutToApprove, setPulloutToApprove] = useState(null);
+
+  // Get the current user and permissions
+  const { user } = useAuth();
+  const { hasPermission } = usePermissions();
+  const { approvePullout } = useInventory(); // Add this to get the approve function
+  
+  // Check permissions for approval
+  const canApprove = canApprovePullouts || hasPermission('pullouts.approve');
 
   // Format date helper function
   const formatDate = (dateString) => {
@@ -221,10 +237,21 @@ const PulloutList = ({
   // Handle sort click
   const handleSort = (key) => {
     let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
+    if (sortConfig.key === key) {
+      // If already sorted by this key, toggle direction
+      if (sortConfig.key === key && sortConfig.direction === 'asc') {
+        direction = 'desc';
+      }
     }
-    setSortConfig({ key, direction });
+    
+    // Map the UI sort key to database column name
+    const columnMap = {
+      'staff_id': 'requested_by',
+      'manager_id': 'approved_by'
+    };
+    
+    const actualKey = columnMap[key] || key;
+    setSortConfig({ key: actualKey, direction });
   };
 
   // Get sort indicator
@@ -302,10 +329,54 @@ const PulloutList = ({
     }
   };
 
+  // Approve pullout confirm
+  const handleApproveConfirm = async () => {
+    if (!pulloutToApprove) return;
+    
+    try {
+      // Call the approvePullOut function - THIS WAS MISSING
+      await approvePullout(
+        pulloutToApprove.pullout_id, 
+        user?.id || currentUser?.id
+      );
+      
+      toast.success('Pullout request approved successfully');
+      setShowApproveModal(false);
+      setPulloutToApprove(null);
+      
+      // Refresh the list
+      if (onRefresh) {
+        onRefresh();
+      }
+    } catch (err) {
+      console.error('Error approving pullout:', err);
+      toast.error(`Failed to approve pullout: ${err.message}`);
+      
+      // Show more detailed error with SweetAlert
+      Swal.fire({
+        icon: 'error',
+        title: 'Approval Error',
+        text: err.message || 'Failed to approve pullout request'
+      });
+    }
+  };
+
+  // Add this function to handle the approve button click
+  const handleApproveClick = (pullout) => {
+    setPulloutToApprove(pullout);
+    setShowApproveModal(true);
+  };
+
   // Get ingredient name by ID
   const getIngredientName = (ingredientId) => {
     const ingredient = ingredients.find(i => i.ingredient_id === ingredientId);
     return ingredient ? ingredient.name : 'Unknown Ingredient';
+  };
+
+  // Get ingredient unit by ID
+  const getIngredientUnit = (ingredientId) => {
+    const ingredient = ingredients.find(i => i.ingredient_id === ingredientId);
+    return ingredient ? ingredient.unit : '';
   };
 
   // Loading state display
@@ -348,8 +419,7 @@ const PulloutList = ({
       <PulloutFilters 
         filters={filters} 
         setFilters={setFilters} 
-        ingredients={ingredients} 
-        managers={managers}
+        ingredients={ingredients}
       />
       
       {/* Pullouts Table */}
@@ -381,10 +451,10 @@ const PulloutList = ({
                   </th>
                   <th 
                     scope="col" 
-                    className="px-6 py-3 text-right text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
+                    className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
                     onClick={() => handleSort('quantity')}
                   >
-                    <div className="flex items-left justify-start">
+                    <div className="flex items-center">
                       <span>Quantity</span>
                       {getSortIndicator('quantity')}
                     </div>
@@ -417,6 +487,16 @@ const PulloutList = ({
                   </th>
                   <th 
                     scope="col" 
+                    className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center justify-start">
+                      <span>Status</span>
+                      {getSortIndicator('status')}
+                    </div>
+                  </th>
+                  <th 
+                    scope="col" 
                     className="px-6 py-3 text-right text-xs font-semibold text-white uppercase tracking-wider"
                   >
                     <span>Actions</span>
@@ -440,11 +520,31 @@ const PulloutList = ({
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10 rounded-full border border-[#571C1F]/10 overflow-hidden bg-[#FFF6F2] mr-3">
-                            <div className="h-10 w-10 flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#571C1F]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </div>
+                            {/* Replace this div and SVG with image */}
+                            {(() => {
+                              // Find the ingredient to get its image
+                              const ingredient = ingredients.find(i => i.ingredient_id === pullout.ingredient_id);
+                              const imageUrl = ingredient?.image;
+                              
+                              return imageUrl ? (
+                                <img 
+                                  src={imageUrl} 
+                                  alt={pullout.ingredientName || getIngredientName(pullout.ingredient_id)}
+                                  className="h-10 w-10 object-cover"
+                                  onError={(e) => {
+                                    // Fallback to default icon if image fails to load
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : (
+                                <div className="h-10 w-10 flex items-center justify-center">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#571C1F]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="font-medium text-[#571C1F]">
                             {pullout.ingredientName || getIngredientName(pullout.ingredient_id)}
@@ -463,17 +563,50 @@ const PulloutList = ({
                         {pullout.staffName || `Staff #${pullout.staff_id}`}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#571C1F] font-medium">
-                        {pullout.manager_id ? (pullout.managerName || `Manager #${pullout.manager_id}`) : 
+                        {pullout.approved_by ? (
+                          pullout.managerName || `Approved by ${pullout.approved_by?.substring(0, 8)}...`
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-[#571C1F] font-medium">
+                        {pullout.status === 'approved' ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 border border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-800/30 dark:text-green-300">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
+                            Approved
+                          </span>
+                        ) : pullout.status === 'rejected' ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 border border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800/30 dark:text-red-300">
+                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1"></span>
+                            Rejected
+                          </span>
+                        ) : (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 border border-amber-200 text-amber-800 dark:bg-amber-900/30 dark:border-amber-800/30 dark:text-amber-300">
                             <span className="w-1.5 h-1.5 bg-amber-500 rounded-full mr-1"></span>
-                            Pending Approval
+                            Pending
                           </span>
-                        }
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-2">
                           {canManage && (
                             <>
+                              {/* Add Approve button for pending pullouts */}
+                              {canApprove && pullout.status === 'pending' && (
+                                <motion.button
+                                  whileHover={{ scale: 1.05, y: -1 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => handleApproveClick(pullout)}
+                                  className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-100 rounded-full transition"
+                                  aria-label="Approve pullout"
+                                  title="Approve"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </motion.button>
+                              )}
+                              
                               <motion.button
                                 whileHover={{ scale: 1.05, y: -1 }}
                                 whileTap={{ scale: 0.95 }}
@@ -496,7 +629,7 @@ const PulloutList = ({
                                 title="Delete"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                               </motion.button>
                             </>
@@ -605,6 +738,54 @@ const PulloutList = ({
               onClick={handleDeleteConfirm}
             >
               Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Approval confirmation modal */}
+      <Modal
+        isOpen={showApproveModal}
+        onClose={() => {
+          setShowApproveModal(false);
+          setPulloutToApprove(null);
+        }}
+        title="Confirm Approval"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            Are you sure you want to approve this pullout request? This will remove the specified quantity from inventory.
+          </p>
+          {pulloutToApprove && (
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
+              <div className="text-sm"><span className="font-medium">Ingredient:</span> {pulloutToApprove.ingredientName || getIngredientName(pulloutToApprove.ingredient_id)}</div>
+              <div className="text-sm"><span className="font-medium">Quantity:</span> {pulloutToApprove.quantity} {getIngredientUnit(pulloutToApprove.ingredient_id)}</div>
+              <div className="text-sm"><span className="font-medium">Date:</span> {formatDate(pulloutToApprove.date_of_pullout)}</div>
+              <div className="text-sm"><span className="font-medium">Requested by:</span> {pulloutToApprove.staffName || 'Unknown staff'}</div>
+              <div className="text-sm"><span className="font-medium">Reason:</span> {pulloutToApprove.reason || 'No reason provided'}</div>
+            </div>
+          )}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded p-3 text-sm text-blue-800 dark:text-blue-200">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            Note: Approving will permanently adjust the inventory quantities.
+          </div>
+          <div className="flex justify-end space-x-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowApproveModal(false);
+                setPulloutToApprove(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleApproveConfirm}
+            >
+              Approve
             </Button>
           </div>
         </div>

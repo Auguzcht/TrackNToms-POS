@@ -3,16 +3,18 @@ import Button from '../common/Button';
 import { useInventory } from '../../hooks/useInventory';
 import { useAuth } from '../../hooks/useAuth';
 import Swal from 'sweetalert2';
+import supabase from '../../services/supabase'; 
 
 const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, onCancel = () => {}, currentUser = null }) => {
   const { user } = useAuth();
   const { 
     ingredients: allIngredients, 
     loading: ingredientsLoading,
-    pullouts, // Added to fetch pullout data directly
+    pullouts,
     createPullout,
     updatePullout,
-    fetchPullouts // Make sure this is being provided by useInventory
+    fetchPullouts,
+    getPullout // Make sure to include this in the destructuring
   } = useInventory();
   
   const [form, setForm] = useState({
@@ -20,8 +22,8 @@ const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, on
     quantity: '',
     reason: '',
     date_of_pullout: new Date().toISOString().split('T')[0],
-    staff_id: user?.id || '',
-    manager_id: ''
+    requested_by: user?.id || '', // Changed from staff_id
+    approved_by: '' // Changed from manager_id
   });
   
   const [loading, setLoading] = useState(false);
@@ -40,16 +42,43 @@ const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, on
       setLoadingPullout(true);
       setError(null);
       
-      // First make sure we have the latest pullouts data
       const loadPulloutData = async () => {
         try {
-          // First fetch the latest pullouts data to ensure we have current data
-          if (fetchPullouts) {
-            await fetchPullouts();
-          }
+          // Try to use the getPullout function from useInventory hook first
+          let pullout;
           
-          // Try to find the pullout in the updated state
-          const pullout = pullouts?.find(p => p.pullout_id === parseInt(pulloutId));
+          try {
+            // First try to find it in the existing pullouts array
+            pullout = pullouts?.find(p => p.pullout_id === parseInt(pulloutId));
+            
+            // If not found in state, use the getPullout function
+            if (!pullout && getPullout) {
+              pullout = await getPullout(pulloutId);
+              console.log("Fetched pullout with getPullout:", pullout);
+            }
+            
+            // If getPullout isn't available or fails, fall back to direct supabase query
+            if (!pullout) {
+              const { data } = await supabase
+                .from('pullout')
+                .select(`
+                  *,
+                  ingredients:ingredient_id (ingredient_id, name, unit)
+                `)
+                .eq('pullout_id', pulloutId)
+                .single();
+                
+              if (data) {
+                pullout = data;
+                console.log("Fetched pullout directly with supabase:", pullout);
+              }
+            }
+          } catch (fetchErr) {
+            console.error("Error fetching specific pullout:", fetchErr);
+            // Fall back to refreshing the entire pullouts list
+            await fetchPullouts();
+            pullout = pullouts?.find(p => p.pullout_id === parseInt(pulloutId));
+          }
           
           if (pullout) {
             setForm({
@@ -57,18 +86,28 @@ const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, on
               quantity: pullout.quantity?.toString() || '',
               reason: pullout.reason || '',
               date_of_pullout: pullout.date_of_pullout || new Date().toISOString().split('T')[0],
-              staff_id: pullout.staff_id || user?.id || '',
-              manager_id: pullout.manager_id || ''
+              requested_by: pullout.requested_by || user?.id || '',
+              approved_by: pullout.approved_by || ''
             });
+            
+            // Also fetch the ingredient to get current stock
+            if (pullout.ingredient_id) {
+              const ingredient = ingredients.find(
+                i => i.ingredient_id.toString() === pullout.ingredient_id.toString()
+              );
+              
+              if (ingredient) {
+                setSelectedIngredient(ingredient);
+              }
+            }
             
             // Store the original quantity for comparison when updating
             setOriginalQuantity(parseFloat(pullout.quantity) || 0);
           } else {
-            // If pullout not found even after fetching, show an error
-            setError(`Pullout record with ID ${pulloutId} not found. It may have been deleted.`);
+            // Add more details to the error message
+            console.log("Available pullouts:", pullouts);
+            setError(`Pullout record with ID ${pulloutId} not found. It may have been deleted or not yet loaded.`);
             console.error(`Pullout with ID ${pulloutId} not found after fetching data`);
-            
-            // Don't throw here - instead, we'll show an error message in the UI
           }
         } catch (err) {
           console.error('Error fetching pullout details:', err);
@@ -80,7 +119,7 @@ const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, on
       
       loadPulloutData();
     }
-  }, [pulloutId, pullouts, user?.id, fetchPullouts]);
+  }, [pulloutId, user?.id, fetchPullouts, ingredients, getPullout, pullouts]); // Add getPullout and pullouts to dependencies
 
   // Use either provided ingredients or all ingredients from hook
   const availableIngredients = ingredients.length > 0 ? ingredients : allIngredients;
@@ -147,14 +186,16 @@ const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, on
         ...form,
         ingredient_id: parseInt(form.ingredient_id),
         quantity: parseFloat(form.quantity),
-        staff_id: form.staff_id || user?.id,
-        manager_id: form.manager_id || null,
+        requested_by: form.requested_by || user?.id,
+        approved_by: form.approved_by || null,
       };
       
       let result;
       
       if (isEdit) {
         result = await updatePullout(pulloutId, pulloutData);
+        // Refresh pullout data after update
+        await fetchPullouts();
         Swal.fire({
           icon: 'success',
           title: 'Success',
@@ -162,6 +203,8 @@ const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, on
         });
       } else {
         result = await createPullout(pulloutData);
+        // Refresh pullout data after creation
+        await fetchPullouts();
         Swal.fire({
           icon: 'success',
           title: 'Success',
@@ -344,11 +387,11 @@ const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, on
               id="manager_approval"
               name="manager_approval"
               type="checkbox"
-              checked={!!form.manager_id}
+              checked={!!form.approved_by}
               onChange={(e) => {
                 setForm(prev => ({
                   ...prev,
-                  manager_id: e.target.checked ? user?.id || currentUser?.id : ''
+                  approved_by: e.target.checked ? user?.id || currentUser?.id : '' // Changed from manager_id
                 }));
               }}
               className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"

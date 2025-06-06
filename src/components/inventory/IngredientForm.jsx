@@ -1,23 +1,63 @@
 import { useState, useEffect } from 'react';
 import Button from '../common/Button';
 import { useInventory } from '../../hooks/useInventory';
+import { useSuppliers } from '../../hooks/useSuppliers';
+import supabase from '../../services/supabase.js';
 import Swal from 'sweetalert2';
 import FileUpload from '../common/FileUpload';
 import { motion } from 'framer-motion';
+import placeholderImage from '../../assets/placeholder-image2.png';
 
-const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () => {} }) => {
-  const { addIngredient, updateIngredient } = useInventory();
+const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () => {}, viewOnly = false }) => {
+  const { addIngredient, updateIngredient, getIngredientSuppliers, setPreferredSupplier } = useInventory();
+  const { suppliers, fetchSuppliers } = useSuppliers();
   const [loading, setLoading] = useState(false);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [supplierDetails, setSupplierDetails] = useState([]);
+  
   const [form, setForm] = useState({
     name: '',
     unit: '',
     quantity: '',
     minimum_quantity: '',
     unit_cost: '',
-    image: ''
+    image: '',
+    description: '',
   });
+
+  // Add a separate state for selected supplier
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imagePath, setImagePath] = useState('');
+  
+  // Load suppliers when component mounts
+  useEffect(() => {
+    fetchSuppliers();
+    
+    // If viewing/editing an ingredient, fetch its suppliers
+    if (ingredient?.ingredient_id) {
+      loadSupplierDetails(ingredient.ingredient_id);
+    }
+  }, [ingredient]);
+  
+  // Function to load supplier details for an ingredient
+  const loadSupplierDetails = async (ingredientId) => {
+    setLoadingSuppliers(true);
+    try {
+      const data = await getIngredientSuppliers(ingredientId);
+      setSupplierDetails(data || []);
+      
+      // If there's a preferred supplier, select it in the dropdown
+      const preferredSupplier = data?.find(s => s.is_preferred);
+      if (preferredSupplier) {
+        setSelectedSupplierId(preferredSupplier.supplier_id.toString());
+      }
+    } catch (error) {
+      console.error('Error loading supplier details:', error);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
   
   // Set form data if editing an existing ingredient
   useEffect(() => {
@@ -28,7 +68,8 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
         quantity: ingredient.quantity || '',
         minimum_quantity: ingredient.minimum_quantity || '',
         unit_cost: ingredient.unit_cost || '',
-        image: ingredient.image || ''
+        image: ingredient.image || '',
+        description: ingredient.description || '',
       });
       setImageUrl(ingredient.image || '');
     }
@@ -37,6 +78,64 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
+  };
+  
+  // Separate handler for supplier selection
+  const handleSupplierChange = (e) => {
+    const value = e.target.value;
+    setSelectedSupplierId(value);
+    
+    // If we're removing a supplier (setting to empty), confirm first
+    if (!value && ingredient?.ingredient_id) {
+      Swal.fire({
+        title: 'Remove Preferred Supplier?',
+        text: "Are you sure you want to remove the preferred supplier for this ingredient?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#571C1F',
+        cancelButtonColor: '#6B7280',
+        confirmButtonText: 'Yes, remove it',
+        cancelButtonText: 'Cancel'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // Proceed with removing preferred supplier
+          removePreferredSupplier(ingredient.ingredient_id);
+        } else {
+          // User canceled, restore the previous selection
+          const preferredSupplier = supplierDetails.find(s => s.is_preferred);
+          if (preferredSupplier) {
+            setSelectedSupplierId(preferredSupplier.supplier_id.toString());
+          }
+        }
+      });
+    }
+  };
+
+  // Function to remove preferred supplier
+  const removePreferredSupplier = async (ingredientId) => {
+    try {
+      // Update all suppliers for this ingredient to non-preferred
+      await supabase
+        .from('ingredient_suppliers')
+        .update({ is_preferred: false })
+        .eq('ingredient_id', ingredientId);
+      
+      // Refresh supplier data
+      await loadSupplierDetails(ingredientId);
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Success',
+        text: 'Preferred supplier removed successfully'
+      });
+    } catch (error) {
+      console.error('Error removing preferred supplier:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Failed to remove preferred supplier'
+      });
+    }
   };
 
   const validateForm = () => {
@@ -49,6 +148,36 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
     if (!form.unit_cost) return "Unit cost is required";
     if (parseFloat(form.unit_cost) <= 0) return "Unit cost must be greater than zero";
     return null;
+  };
+
+  // Handle preferred supplier selection
+  const handleSetPreferredSupplier = async (supplierId) => {
+    if (!ingredient?.ingredient_id) return;
+    
+    try {
+      await setPreferredSupplier(ingredient.ingredient_id, supplierId);
+      
+      // Refresh supplier data
+      await loadSupplierDetails(ingredient.ingredient_id);
+      
+      // Update the selected supplier in the dropdown
+      setSelectedSupplierId(supplierId.toString());
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Success',
+        text: 'Preferred supplier updated successfully',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      console.error('Error setting preferred supplier:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Failed to update preferred supplier'
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -75,23 +204,57 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
         image: imageUrl || form.image,
       };
 
+      let result;
       if (ingredient) {
-        await updateIngredient(ingredient.ingredient_id, ingredientData);
+        result = await updateIngredient(ingredient.ingredient_id, ingredientData);
+        
+        // If supplier is selected, create or update association
+        if (selectedSupplierId) {
+          try {
+            await createIngredientSupplierAssociation(
+              ingredient.ingredient_id, 
+              parseInt(selectedSupplierId),
+              parseFloat(form.unit_cost)
+            );
+          } catch (err) {
+            console.error('Error associating supplier:', err);
+          }
+        }
+        
         Swal.fire({
           icon: 'success',
           title: 'Success',
-          text: 'Ingredient updated successfully'
+          text: 'Ingredient updated successfully',
+          timer: 2000,
+          showConfirmButton: false
         });
       } else {
-        await addIngredient(ingredientData);
+        result = await addIngredient(ingredientData);
+        
+        // If supplier is selected, create association for new ingredient
+        if (selectedSupplierId && result?.ingredient_id) {
+          try {
+            await createIngredientSupplierAssociation(
+              result.ingredient_id, 
+              parseInt(selectedSupplierId),
+              parseFloat(form.unit_cost)
+            );
+          } catch (err) {
+            console.error('Error associating supplier:', err);
+          }
+        }
+        
         Swal.fire({
           icon: 'success',
           title: 'Success',
-          text: 'Ingredient added successfully'
+          text: 'Ingredient added successfully',
+          timer: 2000,
+          showConfirmButton: false
         });
       }
       
-      onSave();
+      // Immediately trigger a refresh by passing the result back to parent
+      onSave(result);
     } catch (error) {
       Swal.fire({
         icon: 'error',
@@ -121,11 +284,244 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
     setForm(prev => ({ ...prev, image: '' }));
   };
 
+  // Function to create/update association between ingredient and supplier
+  const createIngredientSupplierAssociation = async (ingredientId, supplierId, price) => {
+    try {
+      // First check if the association already exists
+      const { data: existingAssoc, error: checkError } = await supabase
+        .from('ingredient_suppliers')
+        .select('*')
+        .eq('ingredient_id', ingredientId)
+        .eq('supplier_id', supplierId)
+        .single();
+      
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is the code for "not found"
+        console.error("Error checking for existing supplier association:", checkError);
+        throw checkError;
+      }
+      
+      if (existingAssoc) {
+        // Update the existing association
+        const { error: updateError } = await supabase
+          .from('ingredient_suppliers')
+          .update({
+            is_preferred: true, // Make this the preferred supplier
+            typical_price: price,
+            updated_at: new Date().toISOString()
+          })
+          .eq('ingredient_id', ingredientId)
+          .eq('supplier_id', supplierId);
+        
+        if (updateError) {
+          console.error("Error updating supplier association:", updateError);
+          throw updateError;
+        }
+      } else {
+        // Create new association
+        const { error: insertError } = await supabase
+          .from('ingredient_suppliers')
+          .insert({
+            ingredient_id: ingredientId,
+            supplier_id: supplierId,
+            is_preferred: true, // Make this the preferred supplier
+            typical_price: price,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        
+        if (insertError) {
+          console.error("Error creating supplier association:", insertError);
+          throw insertError;
+        }
+      }
+        
+      // Then unset other preferred suppliers for this ingredient
+      const { error: unsetError } = await supabase
+        .from('ingredient_suppliers')
+        .update({ is_preferred: false })
+        .eq('ingredient_id', ingredientId)
+        .neq('supplier_id', supplierId);
+      
+      if (unsetError) {
+        console.error("Error updating other supplier preferences:", unsetError);
+        // Don't throw here, as the main operation succeeded
+      }
+    } catch (error) {
+      console.error('Error managing supplier association:', error);
+      throw error;
+    }
+  };
+
+  // If in view mode, render the view-only version
+  if (viewOnly && ingredient) {
+    return (
+      <div className="w-full overflow-visible">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+          {/* Left column - Image */}
+          <div className="lg:col-span-1 h-full">
+            <motion.div 
+              className="bg-transparent p-4 rounded-lg border border-gray-200 shadow-sm h-full flex flex-col"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="flex-grow flex flex-col items-center justify-center">
+                <div className="w-40 h-40 rounded-full border border-gray-200 overflow-hidden bg-white mb-4 shadow-md">
+                  <img 
+                    src={ingredient.image || placeholderImage}
+                    alt={ingredient.name}
+                    className="h-40 w-40 object-cover"
+                    onError={(e) => { 
+                      e.target.src = placeholderImage; 
+                      e.target.onerror = null;
+                    }}
+                  />
+                </div>
+                <h2 className="text-xl font-bold text-[#571C1F]">{ingredient.name}</h2>
+                <span className="text-sm text-gray-500">{ingredient.unit}</span>
+              </div>
+            </motion.div>
+          </div>
+          
+          {/* Right column - Details */}
+          <div className="lg:col-span-2 h-full">
+            <motion.div 
+              className="bg-transparent p-4 rounded-lg border border-gray-200 shadow-sm h-full flex flex-col"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+            >
+              <div className="space-y-4 flex-grow">
+                {/* Inventory Information */}
+                <div className="bg-transparent p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <h4 className="text-sm font-medium text-[#571C1F] mb-3 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Inventory Information
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-2 bg-gray-50 rounded">
+                      <span className="text-xs text-gray-500 block mb-1">Current Stock</span>
+                      <p className="font-medium text-[#571C1F]">{ingredient.quantity} {ingredient.unit}</p>
+                    </div>
+                    <div className="p-2 bg-gray-50 rounded">
+                      <span className="text-xs text-gray-500 block mb-1">Minimum Stock</span>
+                      <p className="font-medium text-[#571C1F]">{ingredient.minimum_quantity} {ingredient.unit}</p>
+                    </div>
+                    <div className="p-2 bg-gray-50 rounded">
+                      <span className="text-xs text-gray-500 block mb-1">Unit Cost</span>
+                      <p className="font-medium text-[#571C1F]">₱{parseFloat(ingredient.unit_cost).toFixed(2)}</p>
+                    </div>
+                    <div className="p-2 bg-gray-50 rounded">
+                      <span className="text-xs text-gray-500 block mb-1">Total Value</span>
+                      <p className="font-medium text-[#571C1F]">
+                        ₱{(ingredient.unit_cost * ingredient.quantity).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Supplier Information */}
+                <div className="bg-transparent p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <h4 className="text-sm font-medium text-[#571C1F] mb-4 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    Supplier Information
+                  </h4>
+                  
+                  {loadingSuppliers ? (
+                    <div className="flex justify-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#571C1F]"></div>
+                    </div>
+                  ) : supplierDetails.length === 0 ? (
+                    <div className="text-center py-6 bg-gray-50 rounded-lg">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-gray-600 font-medium">No suppliers associated with this ingredient</p>
+                      <p className="text-xs mt-1 text-gray-500">Add suppliers through the Purchase Order system</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {supplierDetails.map(supplier => (
+                        <div
+                          key={supplier.supplier_id}
+                          className="p-3 bg-white border border-gray-200 rounded-md shadow-sm flex items-center justify-between hover:border-[#571C1F]/30 transition-colors"
+                        >
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 rounded-full border border-gray-200 overflow-hidden bg-white">
+                              <img
+                                src={supplier.suppliers?.logo || placeholderImage}
+                                alt={supplier.suppliers?.company_name}
+                                className="h-10 w-10 rounded-full object-cover"
+                                onError={(e) => { 
+                                  e.target.src = placeholderImage; 
+                                  e.target.onerror = null;
+                                }}
+                              />
+                            </div>
+                            <div className="ml-3">
+                              <div className="font-medium text-[#571C1F]">
+                                {supplier.suppliers?.company_name}
+                                {supplier.is_preferred && (
+                                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                    Preferred
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-600 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Typical price: ₱{(supplier.typical_price || 0).toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <button
+                            onClick={() => handleSetPreferredSupplier(supplier.supplier_id)}
+                            className={`px-3 py-1.5 text-xs rounded-md ${
+                              supplier.is_preferred
+                                ? "bg-green-100 text-green-800 cursor-default"
+                                : "bg-gray-100 text-gray-700 hover:bg-[#571C1F]/10 hover:text-[#571C1F]"
+                            }`}
+                            disabled={supplier.is_preferred}
+                          >
+                            {supplier.is_preferred ? "Preferred" : "Set as Preferred"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Description - only if available */}
+                {ingredient.description && (
+                  <div className="bg-transparent p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <h4 className="text-sm font-medium text-[#571C1F] mb-2 flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                      </svg>
+                      Description
+                    </h4>
+                    <p className="text-sm text-gray-700">{ingredient.description}</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Otherwise render the editable form
   return (
     <form onSubmit={handleSubmit} className="w-full overflow-visible">
-      {/* Use h-full to make sure child divs can stretch to full height */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
-        {/* Image Section - Added h-full and flex flex-col to make container take full height */}
+        {/* Image Section */}
         <div className="lg:col-span-1 h-full">
           <motion.div 
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col"
@@ -137,7 +533,6 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
               Ingredient Image
             </h3>
             
-            {/* Make FileUpload take up available space with flex-grow */}
             <div className="flex-grow flex flex-col">
               <FileUpload
                 category="ingredients"
@@ -147,9 +542,9 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
                 accept="image/jpeg,image/png,image/gif"
                 maxSize={2}
                 initialPreview={imageUrl || form.image}
-                previewClass="w-full h-60 object-contain rounded-md" // Increased height
+                previewClass="w-full h-60 object-contain rounded-md"
                 alt={form.name || "Ingredient image"}
-                className="w-full mb-3 flex-grow" // Added flex-grow
+                className="w-full mb-3 flex-grow"
               />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-auto text-center">
@@ -158,7 +553,7 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
           </motion.div>
         </div>
         
-        {/* Ingredient Details - Added h-full and flex flex-col */}
+        {/* Ingredient Details */}
         <div className="lg:col-span-2 h-full">
           <motion.div 
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col"
@@ -281,6 +676,76 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
                   </div>
                 </div>
               </div>
+
+              {/* Description field */}
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-[#571C1F] dark:text-gray-300">
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  rows={3}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="Optional description of the ingredient"
+                />
+              </div>
+              
+              {/* Supplier Selection with improved handling */}
+              <div>
+                <label htmlFor="supplier_id" className="block text-sm font-medium text-[#571C1F] dark:text-gray-300">
+                  Primary Supplier
+                </label>
+                <select
+                  id="supplier_id"
+                  name="supplier_id"
+                  value={selectedSupplierId}
+                  onChange={handleSupplierChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                >
+                  <option value="">Select a supplier</option>
+                  {suppliers && suppliers.map(supplier => (
+                    <option key={supplier.supplier_id} value={supplier.supplier_id}>
+                      {supplier.company_name || supplier.supplier_name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  This supplier will be set as the preferred supplier for this ingredient
+                </p>
+              </div>
+              
+              {/* Display Existing Supplier Associations (when editing) */}
+              {ingredient && ingredient.ingredient_id && supplierDetails.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-[#571C1F] dark:text-gray-300 mb-2">
+                    Associated Suppliers
+                  </label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md p-2">
+                    {loadingSuppliers ? (
+                      <div className="flex justify-center py-4">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#571C1F]"></div>
+                      </div>
+                    ) : (
+                      supplierDetails.map(supplier => (
+                        <div key={supplier.supplier_id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                          <div className="flex items-center">
+                            <div className="text-sm font-medium text-gray-900">{supplier.suppliers?.company_name}</div>
+                            {supplier.is_preferred && (
+                              <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                                Preferred
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500">₱{supplier.typical_price?.toFixed(2) || '0.00'}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>

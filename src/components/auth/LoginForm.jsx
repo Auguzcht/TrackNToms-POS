@@ -211,20 +211,6 @@ const LoginForm = () => {
             )}
           </Button>
         </motion.div>
-        
-        {/* Admin contact info */}
-        <motion.div 
-          variants={itemVariants}
-          className="text-center text-sm text-[#003B25]/70 dark:text-gray-400 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700"
-        >
-          <motion.p 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            transition={{ delay: 0.5 }}
-          >
-            Need an account? Contact your administrator.
-          </motion.p>
-        </motion.div>
       </motion.form>
     </motion.div>
   );

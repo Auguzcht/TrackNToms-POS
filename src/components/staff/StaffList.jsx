@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import Card from '../common/Card';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom'; // Import useNavigate
+import placeholderImage from '../../assets/placeholder-image.png';
 
 // Update StaffFilters component
 const StaffFilters = ({ filters, setFilters, roles }) => {
@@ -66,13 +67,10 @@ const StaffFilters = ({ filters, setFilters, roles }) => {
   );
 };
 
-// Move the useStaff hook to a separate file
+// Replace the useStaff implementation in StaffList.jsx
 export const useStaff = () => {
   const [staff, setStaff] = useState([]);
-  const [roles, setRoles] = useState([
-    { id: 1, name: 'Manager', description: 'Full system access' },
-    { id: 2, name: 'Cashier', description: 'POS and basic functions' }
-  ]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -81,37 +79,43 @@ export const useStaff = () => {
     setLoading(true);
     setError(null);
     try {
-      // For now, use mock data since we're not connecting to real backend yet
-      const mockStaff = [
-        {
-          staff_id: 1,
-          first_name: 'John',
-          last_name: 'Doe',
-          email: 'john.doe@trackntoms.com',
-          phone_number: '+1 (555) 123-4567',
-          username: 'johndoe',
-          role_id: 1,
-          role: 'Manager',
-          status: 'Active',
-          profile_image: null,
-          hire_date: '2023-01-15'
-        },
-        {
-          staff_id: 2,
-          first_name: 'Jane',
-          last_name: 'Smith',
-          email: 'jane.smith@trackntoms.com',
-          phone_number: '+1 (555) 987-6543',
-          username: 'janesmith',
-          role_id: 2,
-          role: 'Cashier',
-          status: 'Active',
-          profile_image: null,
-          hire_date: '2023-02-20'
-        }
-      ];
-      setStaff(mockStaff);
-      return mockStaff;
+      // Import supabase client
+      const supabase = (await import('../../services/supabase')).default;
+      
+      // Fetch staff with proper error handling
+      const { data, error: staffError } = await supabase
+        .from('staff')
+        .select(`
+          *,
+          roles (
+            role_id,
+            role_name
+          )
+        `)
+        .order('last_name', { ascending: true });
+
+      if (staffError) throw staffError;
+      
+      // Format the staff data
+      const formattedStaff = data.map(item => ({
+        staff_id: item.staff_id,
+        user_id: item.user_id,
+        first_name: item.first_name,
+        last_name: item.last_name,
+        email: item.email,
+        phone: item.phone || '',
+        username: item.email.split('@')[0], // Use email prefix as username
+        role_id: item.role_id,
+        role: item.roles?.role_name || 'Unknown',
+        status: item.status || 'Inactive',
+        is_active: item.is_active || false,
+        profile_image: item.profile_image,
+        created_at: item.created_at,
+        updated_at: item.updated_at
+      }));
+      
+      setStaff(formattedStaff);
+      return formattedStaff;
     } catch (err) {
       console.error('Error fetching staff:', err);
       setError('Failed to fetch staff members');
@@ -126,26 +130,64 @@ export const useStaff = () => {
     setLoading(true);
     setError(null);
     try {
-      // Using the predefined roles for now
-      return roles;
+      // Import supabase client
+      const supabase = (await import('../../services/supabase')).default;
+      
+      // Get all roles
+      const { data: roleData, error: roleError } = await supabase
+        .from('roles')
+        .select('*')
+        .order('role_name', { ascending: true });
+        
+      if (roleError) throw roleError;
+      
+      // Format roles without attempting to fetch permissions (which is causing 400 errors)
+      const formattedRoles = roleData.map(role => ({
+        id: role.role_id,
+        name: role.role_name,
+        description: role.description || '',
+      }));
+      
+      setRoles(formattedRoles);
+      return formattedRoles;
     } catch (err) {
       console.error('Error fetching roles:', err);
       setError('Failed to fetch roles');
-      throw err;
+      return [];
     } finally {
       setLoading(false);
     }
-  }, [roles]);
+  }, []);
 
   // Toggle staff status (active/inactive)
-  const toggleStaffStatus = useCallback(async (id, newStatus) => {
+  const toggleStaffStatus = useCallback(async (id, isActive) => {
     setLoading(true);
     setError(null);
+    
     try {
-      // Mock API call for toggling status
-      setStaff(prev => prev.map(member => 
-        member.staff_id === id ? { ...member, status: newStatus ? 'Active' : 'Inactive' } : member
-      ));
+      const status = isActive ? 'Active' : 'Inactive';
+      
+      // Import supabase client
+      const supabase = (await import('../../services/supabase')).default;
+      
+      const { data, error: updateError } = await supabase
+        .from('staff')
+        .update({
+          status: status,
+          is_active: isActive,
+          updated_at: new Date().toISOString()
+        })
+        .eq('staff_id', id)
+        .select('first_name, last_name')
+        .single();
+        
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Refresh staff list
+      fetchStaff();
+      
       return true;
     } catch (err) {
       console.error(`Error toggling status for staff with ID ${id}:`, err);
@@ -154,15 +196,43 @@ export const useStaff = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchStaff]);
 
   // Delete a staff member
   const deleteStaff = useCallback(async (id) => {
     setLoading(true);
     setError(null);
+    
     try {
-      // Mock API call
-      setStaff(prev => prev.filter(member => member.staff_id !== id));
+      // Import supabase client
+      const supabase = (await import('../../services/supabase')).default;
+      
+      // Get the staff record to check if there's an auth user to delete
+      const { data: staffRecord, error: fetchError } = await supabase
+        .from('staff')
+        .select('user_id, first_name, last_name')
+        .eq('staff_id', id)
+        .single();
+        
+      if (fetchError) throw fetchError;
+      
+      if (!staffRecord) {
+        throw new Error(`Staff member with ID ${id} not found`);
+      }
+
+      // Delete the staff record
+      const { error: deleteError } = await supabase
+        .from('staff')
+        .delete()
+        .eq('staff_id', id);
+        
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      // Refresh staff list
+      fetchStaff();
+      
       return true;
     } catch (err) {
       console.error(`Error deleting staff with ID ${id}:`, err);
@@ -171,7 +241,7 @@ export const useStaff = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchStaff]);
 
   return {
     staff,
@@ -185,9 +255,16 @@ export const useStaff = () => {
   };
 };
 
-const StaffList = ({ onEdit = () => {}, onView = () => {}, onAdd = () => {} }) => {
-  const navigate = useNavigate(); // Initialize navigate
-  const { staff, roles, loading, error, fetchStaff, fetchRoles, deleteStaff, toggleStaffStatus } = useStaff();
+const StaffList = ({ 
+  onEdit = () => {}, 
+  onView = () => {}, 
+  onAdd = () => {},
+  staff = [],
+  roles = [],
+  loading = false,
+  error = null
+}) => {
+  const navigate = useNavigate();
   const [filteredStaff, setFilteredStaff] = useState([]);
   const [filters, setFilters] = useState({
     search: '',
@@ -203,24 +280,21 @@ const StaffList = ({ onEdit = () => {}, onView = () => {}, onAdd = () => {} }) =
   const [confirmStatusChange, setConfirmStatusChange] = useState(false);
   const [staffToToggle, setStaffToToggle] = useState(null);
 
-  // Custom handlers for view and edit that use navigation
+  // Use fetchStaff, fetchRoles, deleteStaff, toggleStaffStatus from useStaff
+  const { deleteStaff, toggleStaffStatus } = useStaff();
+
+  // Custom handlers for view and edit that use props
   const handleView = (staffId) => {
-    onView(staffId); // Use the prop instead of navigation
+    onView(staffId);
   };
 
   const handleEdit = (staffId) => {
-    onEdit(staffId); // Use the prop instead of navigation
+    onEdit(staffId);
   };
 
   const handleAdd = () => {
-    onAdd(); // Use the prop instead of navigation
+    onAdd();
   };
-
-  // Fetch staff and roles when component mounts
-  useEffect(() => {
-    fetchStaff();
-    fetchRoles();
-  }, [fetchStaff, fetchRoles]);
 
   // Apply filters and sorting to staff list
   useEffect(() => {
@@ -333,9 +407,10 @@ const StaffList = ({ onEdit = () => {}, onView = () => {}, onAdd = () => {} }) =
     }
   };
 
-  // Get role name by ID
+  // Replace the getRoleName function (around line 403)
   const getRoleName = (roleId) => {
-    const role = roles.find(r => r.id === roleId);
+    // Check if roles exists and find the role by matching role_id or id
+    const role = roles.find(r => r.id === roleId || r.role_id === roleId);
     return role ? role.name : 'Unknown Role';
   };
 
@@ -441,11 +516,17 @@ const StaffList = ({ onEdit = () => {}, onView = () => {}, onAdd = () => {} }) =
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
                             {staff.profile_image ? (
-                              <img className="h-10 w-10 rounded-full" src={staff.profile_image} alt={`${staff.first_name} ${staff.last_name}`} />
+                              <img className="h-10 w-10 rounded-full" 
+                                   src={staff.profile_image} 
+                                   alt={`${staff.first_name} ${staff.last_name}`}
+                                   onError={(e) => {
+                                     e.target.onerror = null;
+                                     e.target.src = placeholderImage;
+                                   }} />
                             ) : (
                               <div className="h-10 w-10 rounded-full bg-[#FFF6F2] border border-[#571C1F]/10 flex items-center justify-center">
                                 <span className="text-[#571C1F] text-sm font-medium">
-                                  {staff.first_name[0]}{staff.last_name[0]}
+                                  {staff.first_name?.[0]}{staff.last_name?.[0]}
                                 </span>
                               </div>
                             )}
@@ -460,11 +541,20 @@ const StaffList = ({ onEdit = () => {}, onView = () => {}, onAdd = () => {} }) =
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-600 font-bold">
-                        {staff.username}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            {staff.phone || "No phone"}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            @{staff.username || staff.email.split('@')[0]}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-600 font-bold">
-                        {getRoleName(staff.role_id)}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 font-medium">
+                          {staff.role || getRoleName(staff.role_id)}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -477,7 +567,7 @@ const StaffList = ({ onEdit = () => {}, onView = () => {}, onAdd = () => {} }) =
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        {/* Update action buttons */}
+                        {/* Action buttons stay the same */}
                         <div className="flex justify-end space-x-2" onClick={e => e.stopPropagation()}>
                           <motion.button
                             whileHover={{ scale: 1.05, y: -1 }}

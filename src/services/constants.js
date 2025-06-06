@@ -80,9 +80,10 @@ export const PERMISSIONS = {
   },
   SUPPLIERS: {
     VIEW: 'suppliers.view',
-    ADD: 'suppliers.add',
+    ADD: 'suppliers.create',
     EDIT: 'suppliers.edit',
-    DELETE: 'suppliers.delete'
+    DELETE: 'suppliers.delete',
+    MANAGE: 'suppliers.manage' 
   },
   PURCHASES: {
     VIEW: 'purchases.view',
@@ -119,7 +120,8 @@ export const USER_ROLES = {
   ADMIN: 'Admin',
   MANAGER: 'Manager',
   CASHIER: 'Cashier',
-  STAFF: 'Staff'
+  STAFF: 'Staff',
+  SUPPLIER: 'Supplier' // Add this line
 };
 
 // Status values for various entities

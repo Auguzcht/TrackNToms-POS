@@ -12,12 +12,13 @@ import Button from '../components/common/Button';
 // Import hooks
 import { useAuth } from '../hooks/useAuth';
 import { useStaff } from '../hooks/useStaff';
+import { toast } from 'react-hot-toast';
 
 const StaffPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { roles } = useStaff();
+  const { staff, roles, fetchStaff, fetchRoles, loading, error } = useStaff();
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [currentStaffId, setCurrentStaffId] = useState(null);
   const [modalMode, setModalMode] = useState('add'); // 'add', 'edit', 'view'
@@ -37,6 +38,24 @@ const StaffPage = () => {
     setActiveTab(getTabFromURL());
   }, [location.search]);
 
+  // Fetch staff and roles data when component mounts
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        if (activeTab === 'staff') {
+          await fetchStaff();
+        } else if (activeTab === 'roles') {
+          await fetchRoles();
+        }
+      } catch (err) {
+        console.error("Error loading data:", err);
+        toast.error("Failed to load data. Please try again.");
+      }
+    };
+    
+    loadData();
+  }, [activeTab, fetchStaff, fetchRoles]);
+
   // Set background color when the component mounts and restore when unmounting
   useEffect(() => {
     const originalBgColor = document.body.style.backgroundColor;
@@ -48,11 +67,17 @@ const StaffPage = () => {
   }, []);
 
   // Check if user has permissions to manage staff
-  const canManageStaff = user?.role === 'Manager' || user?.permissions?.includes('staff.manage');
+  const canManageStaff = user?.role === 'Admin' || user?.role === 'Manager' || 
+    user?.permissions?.includes('staff.manage') || user?.permissions?.includes('staff.edit');
 
   // Update the URL when tab changes
   const handleTabChange = (tab) => {
     navigate(`/staff?tab=${tab}`);
+    if (tab === 'staff') {
+      fetchStaff();
+    } else if (tab === 'roles') {
+      fetchRoles();
+    }
   };
 
   const handleAddStaff = () => {
@@ -76,6 +101,8 @@ const StaffPage = () => {
   const handleStaffSaved = () => {
     setShowStaffModal(false);
     setCurrentStaffId(null);
+    // Refresh data after saving
+    fetchStaff();
   };
 
   const handleModalClose = () => {
@@ -121,11 +148,11 @@ const StaffPage = () => {
                 staggerChildren: 0.1
               }
             },
-            exit: { opacity: 0 } // Add exit variant for the entire container
+            exit: { opacity: 0 }
           }}
           initial="hidden"
           animate="show"
-          exit="exit" // Add this to enable exit animations
+          exit="exit"
           className="space-y-6"
         >
           {/* Header area with icon and action button */}
@@ -133,23 +160,23 @@ const StaffPage = () => {
             className="flex justify-between items-center"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }} // Add exit animation
+            exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.5 }}
           >
             <motion.div
               className="flex items-center space-x-3"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }} // Add exit animation
+              exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={`icon-${activeTab}`} // Add key to trigger AnimatePresence
+                  key={`icon-${activeTab}`}
                   className="p-2 bg-[#FFF6F2] rounded-md border border-[#571C1F]/20 shadow-md relative overflow-hidden z-10"
                   initial={{ scale: 0, rotate: -10 }}
                   animate={{ scale: 1, rotate: 0 }}
-                  exit={{ scale: 0, rotate: 10, opacity: 0 }} // Add exit animation
+                  exit={{ scale: 0, rotate: 10, opacity: 0 }}
                   transition={{ 
                     type: "spring", 
                     stiffness: 260, 
@@ -187,11 +214,11 @@ const StaffPage = () => {
 
               <AnimatePresence mode="wait">
                 <motion.h1 
-                  key={`title-${activeTab}`} // Add key to trigger AnimatePresence
+                  key={`title-${activeTab}`}
                   className="text-xl font-bold text-[#571C1F]"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }} // Add exit animation
+                  exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.3 }}
                 >
                   {activeTab === 'staff' ? 'Staff List' : 'Role Management'}
@@ -199,7 +226,7 @@ const StaffPage = () => {
               </AnimatePresence>
             </motion.div>
             
-            {/* Action button with proper exit animation */}
+            {/* Action button */}
             <AnimatePresence mode="wait">
               {activeTab === 'staff' && canManageStaff ? (
                 <motion.div 
@@ -230,13 +257,13 @@ const StaffPage = () => {
             </AnimatePresence>
           </motion.div>
 
-          {/* Progress bar and Tab Navigation */}
+          {/* Progress bar */}
           <div className="relative">
             <motion.div
               className="h-1 bg-gradient-to-r from-[#571C1F] to-[#003B25] rounded-full mb-6"
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: "100%", opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }} // Add exit animation
+              exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.8 }}
             />
 
@@ -259,7 +286,11 @@ const StaffPage = () => {
                     <StaffList 
                       onEdit={handleEditStaff} 
                       onView={handleViewStaff}
-                      onAdd={handleAddStaff} 
+                      onAdd={handleAddStaff}
+                      staff={staff}
+                      roles={roles}
+                      loading={loading}
+                      error={error}
                     />
                   </motion.div>
                 )}

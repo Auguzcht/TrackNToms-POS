@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { useInventory } from '../../hooks/useInventory';
 import { useSuppliers } from '../../hooks/useSuppliers';
 import placeholderImage from '../../assets/placeholder-image2.png';
+import ImageWithFallback from '../common/ImageWithFallback';
 
 // Filter component for purchase orders list
 const PurchaseOrderFilters = ({ filters, setFilters, suppliers }) => {
@@ -45,7 +46,7 @@ const PurchaseOrderFilters = ({ filters, setFilters, suppliers }) => {
         )}
       </div>
 
-      {/* Supplier Filter - Match height with style={{ height: '42px' }} */}
+      {/* Supplier Filter */}
       <select
         id="supplier"
         name="supplier"
@@ -56,11 +57,13 @@ const PurchaseOrderFilters = ({ filters, setFilters, suppliers }) => {
       >
         <option value="">All Suppliers</option>
         {suppliers.map(supplier => (
-          <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+          <option key={supplier.supplier_id} value={supplier.supplier_id}>
+            {supplier.company_name}
+          </option>
         ))}
       </select>
 
-      {/* Status Filter - Match height with style={{ height: '42px' }} */}
+      {/* Status Filter */}
       <select
         id="status"
         name="status"
@@ -71,23 +74,36 @@ const PurchaseOrderFilters = ({ filters, setFilters, suppliers }) => {
       >
         <option value="">All Statuses</option>
         <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
         <option value="completed">Completed</option>
+        <option value="rejected">Rejected</option>
         <option value="cancelled">Cancelled</option>
       </select>
     </div>
   );
 };
 
-const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: propSuppliers }) => {
+// Update the component structure to match SupplierList
+const PurchaseOrderList = ({ 
+  onEdit, 
+  onDelete, 
+  canManageSuppliers, 
+  suppliers: propSuppliers,
+  onAdd,
+  loading: externalLoading
+}) => {
+  // Keep existing hooks and state
   const { 
     suppliers = propSuppliers || [], 
-    loading: suppliersLoading, // Rename loading to suppliersLoading
+    loading: suppliersLoading,
     error, 
     purchaseOrders, 
     fetchPurchaseOrders, 
-    deletePurchaseOrder 
+    deletePurchaseOrder,
+    markPurchaseReceived,
+    approvePurchaseOrder,
+    cancelPurchaseOrder
   } = useSuppliers();
-  const { loading: inventoryLoading, error: inventoryError } = useInventory();
   
   const [filteredPurchaseOrders, setFilteredPurchaseOrders] = useState([]);
   const [filters, setFilters] = useState({
@@ -97,7 +113,7 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
   });
   
   const [sortConfig, setSortConfig] = useState({
-    key: 'orderDate',
+    key: 'purchase_date',
     direction: 'desc'
   });
   
@@ -105,136 +121,127 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
   const [currentPurchaseOrder, setCurrentPurchaseOrder] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [purchaseOrderToDelete, setPurchaseOrderToDelete] = useState(null);
-
-  // Mock purchase orders data for display
-  const mockPurchaseOrders = [
-    {
-      id: 1,
-      orderNumber: 'PO-2023-001',
-      supplierId: 1,
-      orderDate: '2023-10-01',
-      deliveryDate: '2023-10-15',
-      status: 'completed',
-      total: 12500.00,
-      items: [
-        { id: 1, name: 'Coffee Beans Arabica', quantity: 25, unit: 'kg', unitPrice: 500.00 }
-      ]
-    },
-    {
-      id: 2,
-      orderNumber: 'PO-2023-002',
-      supplierId: 2,
-      orderDate: '2023-10-10',
-      deliveryDate: null,
-      status: 'pending',
-      total: 8750.00,
-      items: [
-        { id: 1, name: 'Milk', quantity: 50, unit: 'L', unitPrice: 95.00 },
-        { id: 2, name: 'Sugar', quantity: 30, unit: 'kg', unitPrice: 120.00 }
-      ]
-    },
-    {
-      id: 3,
-      orderNumber: 'PO-2023-003',
-      supplierId: 1,
-      orderDate: '2023-09-15',
-      deliveryDate: '2023-09-30',
-      status: 'completed',
-      total: 18750.00,
-      items: [
-        { id: 3, name: 'Coffee Beans Robusta', quantity: 25, unit: 'kg', unitPrice: 450.00 },
-        { id: 4, name: 'Tea Leaves', quantity: 15, unit: 'kg', unitPrice: 600.00 }
-      ]
-    }
-  ];
+  const [processing, setProcessing] = useState(false);
+  
+  // Loading state control - combine all loading sources
+  const isLoading = suppliersLoading || externalLoading || processing;
 
   // Load purchase orders when component mounts
   useEffect(() => {
-    // Fetch real purchase orders data
     fetchPurchaseOrders();
   }, [fetchPurchaseOrders]);
 
-  // Apply filters and sorting to purchase orders list
+  // Apply filters and sorting to purchase orders list - keep existing logic
   useEffect(() => {
     if (!purchaseOrders) {
       setFilteredPurchaseOrders([]);
       return;
     }
     
-    // Start with actual purchase orders from API
-    let result = [...purchaseOrders];
-    
-    // Apply search filter
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(item => 
-        (item.purchase_id && item.purchase_id.toString().includes(searchLower))
-      );
-    }
-    
-    // Apply supplier filter
-    if (filters.supplierId) {
-      result = result.filter(item => item.supplier_id?.toString() === filters.supplierId);
-    }
-    
-    // Apply status filter - requires adding status field to purchases table
-    if (filters.status) {
-      result = result.filter(item => item.status === filters.status);
-    }
-    
-    // Apply sorting - updated field names to match database schema
-    if (sortConfig.key) {
-      result.sort((a, b) => {
-        // Map frontend keys to database field names
-        const keyMap = {
-          'orderDate': 'purchase_date',
-          'orderNumber': 'purchase_id', 
-          'total': 'total_amount',
-          'supplierId': 'supplier_id'
-        };
-        
-        const dbKey = keyMap[sortConfig.key] || sortConfig.key;
-        
-        let aValue = a[dbKey];
-        let bValue = b[dbKey];
-        
-        // Handle dates
-        if (dbKey === 'purchase_date') {
-          aValue = new Date(aValue || 0).getTime();
-          bValue = new Date(bValue || 0).getTime();
-        }
-        
-        if (aValue < bValue) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    
-    setFilteredPurchaseOrders(result);
+    // Use a small timeout for smooth transition
+    setTimeout(() => {
+      // Start with all purchase orders
+      let result = [...purchaseOrders];
+      
+      // Apply search filter
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        result = result.filter(item => 
+          (item.purchase_id && item.purchase_id.toString().includes(searchLower)) ||
+          (item.supplier_name && item.supplier_name.toLowerCase().includes(searchLower)) ||
+          (item.staff_name && item.staff_name.toLowerCase().includes(searchLower))
+        );
+      }
+      
+      // Apply supplier filter
+      if (filters.supplierId) {
+        result = result.filter(item => item.supplier_id?.toString() === filters.supplierId);
+      }
+      
+      // Apply status filter
+      if (filters.status) {
+        result = result.filter(item => (item.status || 'pending').toLowerCase() === filters.status.toLowerCase());
+      }
+      
+      // Apply sorting
+      if (sortConfig.key) {
+        result.sort((a, b) => {
+          let aValue, bValue;
+          
+          if (sortConfig.key === 'orderDate') {
+            aValue = new Date(a.purchase_date || 0).getTime();
+            bValue = new Date(b.purchase_date || 0).getTime();
+          } else if (sortConfig.key === 'orderNumber') {
+            aValue = parseInt(a.purchase_id || 0);
+            bValue = parseInt(b.purchase_id || 0);
+          } else if (sortConfig.key === 'supplierId') {
+            aValue = a.supplier_name || '';
+            bValue = b.supplier_name || '';
+          } else if (sortConfig.key === 'total') {
+            aValue = parseFloat(a.total_amount || 0);
+            bValue = parseFloat(b.total_amount || 0);
+          } else if (sortConfig.key === 'status') {
+            aValue = a.status || '';
+            bValue = b.status || '';
+          } else {
+            aValue = a[sortConfig.key];
+            bValue = b[sortConfig.key];
+          }
+          
+          if (aValue < bValue) {
+            return sortConfig.direction === 'asc' ? -1 : 1;
+          }
+          if (aValue > bValue) {
+            return sortConfig.direction === 'asc' ? 1 : -1;
+          }
+          return 0;
+        });
+      }
+      
+      setFilteredPurchaseOrders(result);
+    }, 50);
   }, [purchaseOrders, filters, sortConfig]);
 
   // Handle sort click
   const handleSort = (key) => {
+    // Map frontend keys to database field names
+    const keyMap = {
+      'orderDate': 'purchase_date',
+      'orderNumber': 'purchase_id', 
+      'total': 'total_amount',
+      'supplierId': 'supplier_id',
+      'status': 'status'
+    };
+    
+    const dbKey = keyMap[key] || key;
+    
     let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+    if (sortConfig.key === dbKey && sortConfig.direction === 'asc') {
       direction = 'desc';
     }
-    setSortConfig({ key, direction });
+    setSortConfig({ key: dbKey, direction });
   };
 
   // Get sort indicator
   const getSortIndicator = (key) => {
-    if (sortConfig.key !== key) return null;
+    // Map frontend keys to database field names
+    const keyMap = {
+      'orderDate': 'purchase_date',
+      'orderNumber': 'purchase_id', 
+      'total': 'total_amount',
+      'supplierId': 'supplier_id',
+      'status': 'status'
+    };
+    
+    const dbKey = keyMap[key] || key;
+    
+    if (sortConfig.key !== dbKey) return null;
     
     return (
       <motion.span 
         initial={{ opacity: 0, scale: 0.5 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="ml-1 text-xs text-[#571C1F] inline-block"
+        className="ml-1 text-xs text-white inline-block"
       >
         {sortConfig.direction === 'asc' ? '↑' : '↓'}
       </motion.span>
@@ -248,39 +255,67 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
   };
 
   // Handle delete click
-  const handleDeleteClick = (purchaseOrder) => {
-    setPurchaseOrderToDelete(purchaseOrder);
-    setConfirmDelete(true);
+  const handleDeleteClick = (purchaseOrderId) => {
+    const order = purchaseOrders.find(po => po.purchase_id === purchaseOrderId);
+    if (order) {
+      setPurchaseOrderToDelete(order);
+      setConfirmDelete(true);
+    }
   };
 
   // Handle delete confirm
   const handleDeleteConfirm = async () => {
     if (!purchaseOrderToDelete) return;
     
+    setProcessing(true);
     try {
-      // Mock delete operation for now
-      // await deletePurchaseOrder(purchaseOrderToDelete.id);
-      setFilteredPurchaseOrders(prev => 
-        prev.filter(po => po.id !== purchaseOrderToDelete.id)
-      );
-      toast.success('Purchase order has been deleted');
+      // Call cancelPurchaseOrder instead of deletePurchaseOrder
+      await cancelPurchaseOrder(purchaseOrderToDelete.purchase_id);
+      toast.success('Purchase order cancelled');
       setConfirmDelete(false);
       setPurchaseOrderToDelete(null);
+      // Refresh purchase orders list
+      fetchPurchaseOrders();
     } catch (err) {
-      console.error('Error deleting purchase order:', err);
-      toast.error('Failed to delete purchase order. Please try again.');
+      console.error('Error cancelling purchase order:', err);
+      toast.error(`Failed to cancel order: ${err.message}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+  
+  // Handle mark as received
+  const handleMarkReceived = async (purchaseId) => {
+    setProcessing(true);
+    try {
+      await markPurchaseReceived(purchaseId);
+      toast.success('Purchase order marked as received');
+      setShowDetailsModal(false);
+      // Refresh purchase orders list
+      fetchPurchaseOrders();
+    } catch (err) {
+      console.error('Error marking purchase order as received:', err);
+      toast.error(`Failed to mark as received: ${err.message}`);
+    } finally {
+      setProcessing(false);
     }
   };
 
-  // Get supplier name by ID
-  const getSupplierName = (supplierId) => {
-    const supplier = suppliers.find(s => s.id === supplierId);
-    return supplier ? supplier.name : 'Unknown Supplier';
-  };
-
-  // Calculate total items in a purchase order
-  const calculateTotalItems = (purchaseOrder) => {
-    return purchaseOrder.items?.reduce((total, item) => total + Number(item.quantity), 0) || 0;
+  // Handle approve purchase order
+  const handleApproveOrder = async (purchaseId) => {
+    setProcessing(true);
+    try {
+      // Call the approvePurchaseOrder method from useSuppliers
+      await approvePurchaseOrder(purchaseId);
+      toast.success('Purchase order approved');
+      // Refresh purchase orders list
+      fetchPurchaseOrders();
+    } catch (err) {
+      console.error('Error approving purchase order:', err);
+      toast.error(`Failed to approve order: ${err.message}`);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   // Format date with fallback
@@ -298,70 +333,25 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
     return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP'
-    }).format(amount);
+    }).format(amount || 0);
   };
 
   // Get status badge color
   const getStatusBadgeColor = (status) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'completed':
         return 'bg-[#003B25]/10 border border-[#003B25]/20 text-[#003B25]';
       case 'pending':
         return 'bg-amber-100 border border-amber-200 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
+      case 'approved':
+        return 'bg-blue-100 border border-blue-200 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+      case 'rejected':
       case 'cancelled':
         return 'bg-[#571C1F]/10 border border-[#571C1F]/20 text-[#571C1F]';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
   };
-
-  // Image component with fallback
-  const ImageWithFallback = ({ src, alt, className }) => {
-    return (
-      <div className={`overflow-hidden ${className}`}>
-        <img 
-          src={src || placeholderImage}
-          alt={alt}
-          onError={(e) => {
-            e.target.onerror = null; 
-            e.target.src = placeholderImage;
-          }}
-          className="h-full w-full object-cover"
-        />
-      </div>
-    );
-  };
-
-  if (suppliersLoading || inventoryLoading) {
-    return (
-      <Card className="animate-pulse">
-        <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
-        <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-        <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          ))}
-        </div>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <div className="text-center py-8">
-          <svg className="mx-auto h-12 w-12 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <h3 className="mt-2 text-lg font-medium text-[#571C1F]">Error Loading Purchase Orders</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{error.message || 'Failed to load purchase order data. Please try again.'}</p>
-          <div className="mt-6">
-            <Button onClick={() => {/* fetchPurchaseOrders() */}}>Try Again</Button>
-          </div>
-        </div>
-      </Card>
-    );
-  }
 
   return (
     <div className="flex flex-col">
@@ -372,80 +362,140 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
         suppliers={suppliers} 
       />
       
-      {/* Table */}
+      {/* Enhanced table container with subtle shadow - like in SupplierList */}
       <div className="overflow-x-auto">
         <div className="align-middle inline-block min-w-full">
           <div className="overflow-hidden border border-[#571C1F]/10 rounded-lg shadow-md">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-[#571C1F] text-white">
-                <tr>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('orderDate')}
-                  >
-                    <div className="flex items-center">
-                      <span>Order Date</span>
-                      {getSortIndicator('orderDate')}
+            {isLoading ? (
+              // Loading state - consistent with SupplierList
+              <div className="px-6 py-4">
+                <div className="animate-pulse space-y-4">
+                  {Array(5).fill(0).map((_, index) => (
+                    <div key={index} className="flex items-center space-x-4">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                      </div>
+                      <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                      <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+                      <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
                     </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('orderNumber')}
-                  >
-                    <div className="flex items-center">
-                      <span>PO Number</span>
-                      {getSortIndicator('orderNumber')}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('supplierId')}
-                  >
-                    <div className="flex items-center">
-                      <span>Supplier</span>
-                      {getSortIndicator('supplierId')}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider"
-                  >
-                    <span>Items</span>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('total')}
-                  >
-                    <div className="flex items-right justify-center">
-                      <span>Total</span>
-                      {getSortIndicator('total')}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('status')}
-                  >
-                    <div className="flex items-center justify-center">
-                      <span>Status</span>
-                      {getSortIndicator('status')}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-right text-xs font-semibold text-white uppercase tracking-wider"
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-dark-lighter divide-y divide-[#571C1F]/10 dark:divide-gray-700">
-                {filteredPurchaseOrders.length > 0 ? (
-                  filteredPurchaseOrders.map((po, index) => (
+                  ))}
+                </div>
+              </div>
+            ) : filteredPurchaseOrders.length === 0 ? (
+              // Empty state - similar to SupplierList
+              <div className="text-center py-10">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 100, delay: 0.1 }}
+                  className="p-3 bg-[#FFF6F2] rounded-md border border-[#571C1F]/20 shadow-md mb-3 inline-flex"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </motion.div>
+                {filters.search || filters.supplierId || filters.status ? (
+                  <>
+                    <p className="text-[#571C1F] font-medium">No purchase orders match your filters</p>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setFilters({ search: '', supplierId: '', status: '' })}
+                      className="mt-2 text-[#571C1F] hover:text-[#571C1F]/80 font-medium px-3 py-1 rounded-md border border-[#571C1F]/30 hover:border-[#571C1F]/50 transition-all"
+                    >
+                      Clear filters
+                    </motion.button>
+                  </>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-[#571C1F] font-medium">No purchase orders found</p>
+                    {canManageSuppliers && (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={onAdd}
+                        className="mt-2 text-[#571C1F] hover:text-[#571C1F]/80 font-medium px-3 py-1 rounded-md border border-[#571C1F]/30 hover:border-[#571C1F]/50 transition-all"
+                      >
+                        Create Your First Purchase Order
+                      </motion.button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Regular table - keep existing structure but with smoother animations
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-[#571C1F] text-white">
+                  <tr>
+                    <th 
+                      scope="col" 
+                      className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('orderDate')}
+                    >
+                      <div className="flex items-center">
+                        <span>Order Date</span>
+                        {getSortIndicator('orderDate')}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('orderNumber')}
+                    >
+                      <div className="flex items-center">
+                        <span>PO Number</span>
+                        {getSortIndicator('orderNumber')}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('supplierId')}
+                    >
+                      <div className="flex items-center">
+                        <span>Supplier</span>
+                        {getSortIndicator('supplierId')}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider"
+                    >
+                      <span>Items</span>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('total')}
+                    >
+                      <div className="flex items-right justify-center">
+                        <span>Total</span>
+                        {getSortIndicator('total')}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center justify-center">
+                        <span>Status</span>
+                        {getSortIndicator('status')}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-6 py-3 text-right text-xs font-semibold text-white uppercase tracking-wider"
+                    >
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-dark-lighter divide-y divide-[#571C1F]/10 dark:divide-gray-700">
+                  {filteredPurchaseOrders.map((po, index) => (
                     <motion.tr 
                       key={po.purchase_id}
                       initial={{ opacity: 0 }}
@@ -463,22 +513,16 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 rounded-full border border-[#571C1F]/10 overflow-hidden bg-[#FFF6F2] mr-3">
-                            <ImageWithFallback
-                              alt="PO document"
-                              className="h-10 w-10 rounded-full object-cover"
-                            />
-                          </div>
                           <div>
                             <div className="font-medium text-[#571C1F]">PO-{po.purchase_id.toString().padStart(4, '0')}</div>
                             <div className="text-xs text-gray-600 truncate max-w-xs">
-                              {po.first_name} {po.last_name}
+                              {po.staff_name || 'Unknown Staff'}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-600 font-medium">
-                        {po.supplier_name || 'Not Specified'}
+                        {po.supplier_name || 'Unknown Supplier'}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-600 font-medium text-center">
                         {po.items?.length || 0} items
@@ -493,82 +537,75 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
                               ? 'bg-[#003B25]' 
                               : (po.status || 'pending') === 'pending'
                                 ? 'bg-amber-500'
-                                : 'bg-[#571C1F]'
+                                : (po.status || 'pending') === 'approved'
+                                  ? 'bg-blue-500'
+                                  : 'bg-[#571C1F]'
                           } rounded-full mr-1`}></span>
                           {(po.status || 'pending').charAt(0).toUpperCase() + (po.status || 'pending').slice(1)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
                         <div className="flex justify-end space-x-2" onClick={e => e.stopPropagation()}>
-                          <motion.button
-                            whileHover={{ scale: 1.05, y: -1 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => onEdit(po.purchase_id)}
-                            className="p-1.5 text-[#003B25] hover:text-[#003B25] hover:bg-[#003B25]/10 rounded-full transition"
-                            aria-label="Edit purchase order"
-                            title="Edit"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </motion.button>
+                          {/* Manager approve button - only for pending orders */}
+                          {canManageSuppliers && po.status === 'pending' && (
+                            <motion.button
+                              whileHover={{ scale: 1.05, y: -1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleApproveOrder(po.purchase_id)}
+                              className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-full transition"
+                              aria-label="Approve purchase order"
+                              title="Approve"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </motion.button>
+                          )}
                           
-                          <motion.button
-                            whileHover={{ scale: 1.05, y: -1 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => onDelete(po.purchase_id)}
-                            className="p-1.5 text-[#571C1F] hover:text-[#571C1F] hover:bg-[#571C1F]/10 rounded-full transition"
-                            aria-label="Delete purchase order"
-                            title="Delete"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </motion.button>
+                          {/* Edit button - only for pending orders */}
+                          {po.status === 'pending' && (
+                            <motion.button
+                              whileHover={{ scale: 1.05, y: -1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => onEdit(po.purchase_id)}
+                              className="p-1.5 text-[#003B25] hover:text-[#003B25] hover:bg-[#003B25]/10 rounded-full transition"
+                              aria-label="Edit purchase order"
+                              title="Edit"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </motion.button>
+                          )}
+                          
+                          {/* Cancel button - only for pending and approved purchase orders */}
+                          {(po.status === 'pending' || po.status === 'approved') && (
+                            <motion.button
+                              whileHover={{ scale: 1.05, y: -1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleCancelOrder(po.purchase_id)}
+                              className="p-1.5 text-[#571C1F] hover:text-[#571C1F] hover:bg-[#571C1F]/10 rounded-full transition"
+                              aria-label="Cancel purchase order"
+                              title="Cancel"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </motion.button>
+                          )}
                         </div>
                       </td>
                     </motion.tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-                      <div className="flex flex-col items-center justify-center">
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ type: "spring", stiffness: 100, delay: 0.1 }}
-                          className="p-3 bg-[#FFF6F2] rounded-md border border-[#571C1F]/20 shadow-md mb-3"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
-                        </motion.div>
-                        {filters.search || filters.supplierId || filters.status ? (
-                          <>
-                            <p>No purchase orders match your filters</p>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => setFilters({ search: '', supplierId: '', status: '' })}
-                              className="mt-2 text-[#571C1F] hover:text-[#571C1F]/80 font-medium px-3 py-1 rounded-md border border-[#571C1F]/30 hover:border-[#571C1F]/50 transition-all"
-                            >
-                              Clear filters
-                            </motion.button>
-                          </>
-                        ) : (
-                          <p>No purchase orders found</p>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
-
-      {!suppliersLoading && filteredPurchaseOrders.length > 0 && (
+      
+      {/* Results count - like in SupplierList */}
+      {!isLoading && filteredPurchaseOrders.length > 0 && (
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -576,7 +613,7 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
           className="mt-2 text-xs flex items-center justify-between"
         >
           <span className="text-gray-800 dark:text-gray-600">
-            Showing <span className="font-medium text-[#571C1F]">{filteredPurchaseOrders.length}</span> of <span className="font-medium text-[#571C1F]">{mockPurchaseOrders.length}</span> purchase orders
+            Showing <span className="font-medium text-[#571C1F]">{filteredPurchaseOrders.length}</span> of <span className="font-medium text-[#571C1F]">{purchaseOrders.length}</span> purchase orders
           </span>
           <span className="text-[#571C1F]/70">
             {filters.search && `Search results for "${filters.search}"`}
@@ -589,7 +626,8 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
         <Modal
           isOpen={showDetailsModal}
           onClose={() => setShowDetailsModal(false)}
-          title={`Purchase Order: ${currentPurchaseOrder.orderNumber}`}
+          title={`Purchase Order: PO-${currentPurchaseOrder.purchase_id.toString().padStart(4, '0')}`}
+          size="lg" // Changed from default to "lg" for a larger modal
         >
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -598,12 +636,20 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
                 <div className="mt-2 space-y-2">
                   <div>
                     <span className="text-xs text-gray-500 dark:text-gray-400">Order Date:</span>
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-300">{formatDate(currentPurchaseOrder.orderDate)}</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-300">{formatDate(currentPurchaseOrder.purchase_date)}</p>
                   </div>
-                  {currentPurchaseOrder.deliveryDate && (
+                  <div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Created By:</span>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-300">
+                      {currentPurchaseOrder.staff_name || 'Unknown Staff'}
+                    </p>
+                  </div>
+                  {currentPurchaseOrder.status === 'completed' && (
                     <div>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Expected Delivery:</span>
-                      <p className="text-sm font-medium text-gray-800 dark:text-gray-300">{formatDate(currentPurchaseOrder.deliveryDate)}</p>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Approved By:</span>
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-300">
+                        {currentPurchaseOrder.manager_name || 'Unknown Manager'}
+                      </p>
                     </div>
                   )}
                   <div>
@@ -614,7 +660,9 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
                           ? 'bg-[#003B25]' 
                           : currentPurchaseOrder.status === 'pending'
                             ? 'bg-amber-500'
-                            : 'bg-[#571C1F]'
+                            : currentPurchaseOrder.status === 'approved'
+                              ? 'bg-blue-500'
+                              : 'bg-[#571C1F]'
                       } rounded-full mr-1`}></span>
                       {currentPurchaseOrder.status.charAt(0).toUpperCase() + currentPurchaseOrder.status.slice(1)}
                     </span>
@@ -628,13 +676,13 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
                   <div>
                     <span className="text-xs text-gray-500 dark:text-gray-400">Supplier:</span>
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-300">
-                      {getSupplierName(currentPurchaseOrder.supplierId)}
+                      {currentPurchaseOrder.supplier_name}
                     </p>
                   </div>
                   <div>
                     <span className="text-xs text-gray-500 dark:text-gray-400">Total Amount:</span>
                     <p className="text-sm font-medium text-[#571C1F] dark:text-[#571C1F]">
-                      {formatCurrency(currentPurchaseOrder.total)}
+                      {formatCurrency(currentPurchaseOrder.total_amount)}
                     </p>
                   </div>
                 </div>
@@ -642,61 +690,63 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
             </div>
             
             {/* Order Items Section */}
-            <div className="pt-6 border-t border-[#571C1F]/10">
-              <h4 className="text-lg font-medium text-[#571C1F] mb-3">Order Items</h4>
-              <div className="overflow-x-auto border border-[#571C1F]/10 rounded-lg">
-                <table className="min-w-full divide-y divide-[#571C1F]/10">
-                  <thead className="bg-[#FFF6F2]">
-                    <tr className="text-left text-sm">
-                      <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider">
-                        Item
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider text-center">
-                        Quantity
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider text-center">
-                        Unit
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider text-right">
-                        Unit Price
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider text-right">
-                        Subtotal
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-[#571C1F]/10">
-                    {currentPurchaseOrder.items && currentPurchaseOrder.items.map((item, idx) => (
-                      <tr key={`${item.ingredient_id}-${idx}`} className="hover:bg-[#FFF6F2]/50 transition-colors">
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                          {item.ingredient_name}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-center">
-                          {item.quantity}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 text-center">
-                          {item.ingredient_unit}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">
-                          {formatCurrency(item.unit_price)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-[#571C1F] font-medium text-right">
-                          {formatCurrency(item.subtotal)}
+            <div className="pt-6">
+              <div className="bg-white rounded-lg border border-[#571C1F]/10 p-4 shadow-sm">
+                <h4 className="text-lg font-medium text-[#571C1F] mb-3">Order Items</h4>
+                <div className="overflow-x-auto border border-[#571C1F]/10 rounded-lg">
+                  <table className="min-w-full divide-y divide-[#571C1F]/10">
+                    <thead className="bg-[#FFF6F2]">
+                      <tr className="text-left text-sm">
+                        <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider">
+                          Item
+                        </th>
+                        <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider text-center">
+                          Quantity
+                        </th>
+                        <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider text-center">
+                          Unit
+                        </th>
+                        <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider text-right">
+                          Unit Price
+                        </th>
+                        <th scope="col" className="px-4 py-3 text-xs font-medium text-[#571C1F]/70 uppercase tracking-wider text-right">
+                          Subtotal
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-[#571C1F]/10">
+                      {currentPurchaseOrder.items && currentPurchaseOrder.items.map((item, idx) => (
+                        <tr key={`${item.ingredient_id}-${idx}`} className="hover:bg-[#FFF6F2]/50 transition-colors">
+                          <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                            {item.ingredient_name}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 font-medium text-center">
+                            {item.quantity}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 font-medium text-center">
+                            {item.ingredient_unit}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 font-medium text-right">
+                            {formatCurrency(item.unit_price)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-[#571C1F] font-medium text-right">
+                            {formatCurrency(item.subtotal)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-[#FFF6F2]/50">
+                      <tr>
+                        <th scope="row" colSpan="4" className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white text-right">
+                          Total:
+                        </th>
+                        <td className="px-4 py-3 text-sm font-bold text-[#571C1F] text-right">
+                          {formatCurrency(currentPurchaseOrder.total_amount)}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-[#FFF6F2]/50">
-                    <tr>
-                      <th scope="row" colSpan="4" className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white text-right">
-                        Total:
-                      </th>
-                      <td className="px-4 py-3 text-sm font-bold text-[#571C1F] text-right">
-                        {formatCurrency(currentPurchaseOrder.total)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
             
@@ -712,26 +762,38 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
             
             {/* Actions Section */}
             <div className="pt-4 border-t border-[#571C1F]/10 flex justify-end space-x-3">
-              {currentPurchaseOrder.status === 'pending' && (
+              {/* Only allow marking as received for approved purchase orders */}
+              {currentPurchaseOrder.status === 'approved' && canManageSuppliers && (
                 <Button 
                   variant="success" 
-                  onClick={() => toast.info('Mark as received functionality coming soon!')}
+                  onClick={() => handleMarkReceived(currentPurchaseOrder.purchase_id)}
+                  disabled={processing}
                 >
-                  Mark as Received
+                  {processing ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4}></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    <>Mark as Received</>
+                  )}
                 </Button>
               )}
               <Button 
                 variant="outline" 
-                onClick={() => toast.info('Print functionality coming soon!')}
+                onClick={() => setShowDetailsModal(false)}
               >
-                Print PO
+                Close
               </Button>
             </div>
           </div>
         </Modal>
       )}
       
-      {/* Delete Confirmation Modal */}
+      {/* Cancel Confirmation Modal */}
       {confirmDelete && purchaseOrderToDelete && (
         <Modal
           isOpen={confirmDelete}
@@ -739,15 +801,15 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
             setConfirmDelete(false);
             setPurchaseOrderToDelete(null);
           }}
-          title="Confirm Delete"
+          title="Confirm Cancellation"
           size="md"
         >
           <div className="space-y-4">
             <p className="text-gray-800 dark:text-gray-200">
-              Are you sure you want to delete purchase order <span className="font-medium text-[#571C1F]">{purchaseOrderToDelete.orderNumber}</span>?
+              Are you sure you want to cancel purchase order <span className="font-medium text-[#571C1F]">PO-{purchaseOrderToDelete.purchase_id.toString().padStart(4, '0')}</span>?
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              This action cannot be undone.
+              This action will mark the order as cancelled.
             </p>
             <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
               <Button 
@@ -756,17 +818,31 @@ const PurchaseOrderList = ({ onEdit, onDelete, canManageSuppliers, suppliers: pr
                   setConfirmDelete(false);
                   setPurchaseOrderToDelete(null);
                 }}
+                disabled={processing}
               >
-                Cancel
+                No, Keep Order
               </Button>
               <Button 
                 variant="danger"
                 onClick={handleDeleteConfirm}
+                disabled={processing}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Delete
+                {processing ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4}></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </span>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Yes, Cancel Order
+                  </>
+                )}
               </Button>
             </div>
           </div>

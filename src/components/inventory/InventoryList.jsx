@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../common/Button';
-import placeholderImage from '../../assets/placeholder-image2.png'; // Import from assets folder
+import Modal from '../common/Modal'; // Add this import
+import placeholderImage from '../../assets/placeholder-image2.png'; 
+import { useInventory } from '../../hooks/useInventory';
+import IngredientForm from './IngredientForm'; // Add this import
 
 const InventoryList = ({ 
   data = [],
-  type = 'ingredient', // 'ingredient' or 'item'
+  type = 'ingredient',
   loading = false,
   onView,
   onEdit,
@@ -14,7 +17,64 @@ const InventoryList = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
   const [imageLoadErrors, setImageLoadErrors] = useState({});
+  const [selectedIngredient, setSelectedIngredient] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [supplierDetails, setSupplierDetails] = useState([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [viewMode, setViewMode] = useState(true); // New state to control view/edit mode
   
+  // Get supplier information from useInventory hook
+  const { getIngredientSuppliers, setPreferredSupplier } = useInventory();
+  
+  // Function to load supplier details for an ingredient
+  const loadSupplierDetails = async (ingredientId) => {
+    if (!ingredientId) return;
+    
+    setLoadingSuppliers(true);
+    try {
+      const suppliersData = await getIngredientSuppliers(ingredientId);
+      setSupplierDetails(suppliersData || []);
+    } catch (error) {
+      console.error("Error loading supplier details:", error);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+  
+  // Handle the ingredient view click
+  const handleIngredientView = (ingredient) => {
+    if (!ingredient || !ingredient.ingredient_id) return;
+    
+    setSelectedIngredient(ingredient);
+    setShowDetailsModal(true);
+    setViewMode(true); // Ensure we're in view mode
+    
+    // Still call the external onView function if provided
+    if (onView) {
+      onView(ingredient);
+    }
+  };
+  
+  // Handle closing of the modal
+  const handleCloseModal = () => {
+    setShowDetailsModal(false);
+    setSelectedIngredient(null);
+  };
+  
+  // Handle edit from the modal
+  const handleEditFromModal = () => {
+    setViewMode(false); // Switch to edit mode
+    if (onEdit) {
+      onEdit(selectedIngredient);
+    }
+  };
+  
+  // Handle save from form (if edit mode is used)
+  const handleSaveFromModal = (updatedIngredient) => {
+    setShowDetailsModal(false);
+    setSelectedIngredient(null);
+  };
+
   // Helper function to safely format currency - improved with better error handling
   const formatCurrency = (value) => {
     if (value === undefined || value === null) return '₱0.00';
@@ -224,7 +284,7 @@ const InventoryList = ({
           </th>
           <th 
             scope="col" 
-            className="px-6 py-4 text-xs font-semibold text-white uppercase tracking-wider bg-[#571C1F]"
+            className="px-6 py-4 text-xs font-semibold text-white uppercase tracking-wider cursor-pointer bg-[#571C1F]"
           >
             Source
           </th>
@@ -319,8 +379,8 @@ const InventoryList = ({
               // Prevent triggering the row click when clicking on action buttons
               if (e.target.closest('button')) return;
               
-              // Call the onView function with the ingredient ID
-              onView && onView(ingredient);
+              // Call our new handleIngredientView function
+              handleIngredientView(ingredient);
             }}
           >
             <td className="px-6 py-4 text-sm">
@@ -491,6 +551,51 @@ const InventoryList = ({
     }
   };
 
+  // Update the renderIngredientModal function to use the viewOnly prop
+  const renderIngredientModal = () => {
+    if (!showDetailsModal || !selectedIngredient) return null;
+    
+    return (
+      <Modal
+        isOpen={showDetailsModal}
+        onClose={handleCloseModal}
+        title={viewMode ? "Ingredient Details" : "Edit Ingredient"}
+        size="4xl"
+        variant="primary"
+      >
+        {viewMode ? (
+          <div>
+            <IngredientForm
+              ingredient={selectedIngredient}
+              viewOnly={true}
+            />
+            <div className="mt-6 flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={handleCloseModal}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleEditFromModal}
+              >
+                Edit Ingredient
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <IngredientForm
+            ingredient={selectedIngredient}
+            onSave={handleSaveFromModal}
+            onCancel={handleCloseModal}
+          />
+        )}
+      </Modal>
+    );
+  };
+
+  // Update the return statement at the end to include the modal
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap gap-4 mb-4 items-center">
@@ -554,6 +659,9 @@ const InventoryList = ({
           </span>
         </motion.div>
       )}
+      
+      {/* Render ingredient modal */}
+      {type === 'ingredient' && renderIngredientModal()}
     </div>
   );
 };

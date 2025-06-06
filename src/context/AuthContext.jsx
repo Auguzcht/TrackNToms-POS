@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import supabase from '../services/supabase';
 
@@ -8,129 +8,181 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState('connected');
+  const initializedRef = useRef(false);
 
-  // Initialize auth state on component mount
+  // Single auth initialization - rely ONLY on onAuthStateChange
   useEffect(() => {
-    const initializeAuth = async () => {
-      setLoading(true);
-      
-      try {
-        // Check active session - this is where the error might be occurring
-        console.log('Checking for existing session...');
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          setLoading(false);
-          return;
-        }
+    // Prevent multiple initializations
+    if (initializedRef.current) {
+      console.log('Auth already initialized, skipping...');
+      return;
+    }
 
-        const activeSession = data.session;
-        setSession(activeSession);
-        
-        // If we have an active session, fetch the user profile
-        if (activeSession) {
-          console.log('Active session found, fetching user profile');
-          await fetchUserProfile(activeSession.user);
-        } else {
-          console.log('No active session found');
-          setLoading(false);
-        }
+    console.log('Initializing auth listener...');
+    initializedRef.current = true;
 
-        // Set up auth listener for changes
-        const { data: authData } = supabase.auth.onAuthStateChange(
-          async (event, currentSession) => {
-            console.log('Auth state changed:', event, currentSession ? currentSession.user?.email : 'No session');
-            setSession(currentSession);
-            
-            if (event === 'SIGNED_IN' && currentSession) {
-              await fetchUserProfile(currentSession.user);
-            } else if (event === 'SIGNED_OUT') {
+    // Set up the auth state listener - this handles EVERYTHING
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, currentSession) => {
+        console.log('Auth state changed:', event, currentSession?.user?.email || 'No session');
+        
+        // Always update session state first
+        setSession(currentSession);
+        
+        switch (event) {
+          case 'INITIAL_SESSION':
+            // This handles both fresh page loads AND returning from inactive tabs
+            if (currentSession) {
+              console.log('Initial session found, fetching user profile');
+              try {
+                await fetchUserProfile(currentSession.user);
+                setConnectionStatus('connected');
+              } catch (error) {
+                console.error('Error during initial profile fetch:', error);
+                setConnectionStatus('degraded');
+              }
+            } else {
+              console.log('No initial session found');
               setUser(null);
-              setSession(null);
-            } else if (event === 'USER_UPDATED' && currentSession) {
-              await fetchUserProfile(currentSession.user);
             }
-          }
-        );
+            setLoading(false);
+            break;
 
-        return () => {
-          if (authData?.subscription) {
-            authData.subscription.unsubscribe();
-          }
-        };
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        setLoading(false);
+          case 'SIGNED_IN':
+            console.log('User signed in');
+            // Only handle this if it's NOT during initial load
+            if (!loading) {
+              try {
+                await fetchUserProfile(currentSession.user);
+                setConnectionStatus('connected');
+                toast.success('Successfully signed in!');
+              } catch (error) {
+                console.error('Error during sign-in profile fetch:', error);
+                setConnectionStatus('degraded');
+              }
+            }
+            break;
+
+          case 'SIGNED_OUT':
+            console.log('User signed out');
+            setUser(null);
+            setSession(null);
+            setConnectionStatus('connected');
+            setLoading(false);
+            break;
+
+          case 'USER_UPDATED':
+            console.log('User updated');
+            if (currentSession) {
+              try {
+                await fetchUserProfile(currentSession.user);
+              } catch (error) {
+                console.error('Error during user update profile fetch:', error);
+              }
+            }
+            break;
+
+          case 'TOKEN_REFRESHED':
+            console.log('Token refreshed successfully');
+            setConnectionStatus('connected');
+            // Don't refetch profile on token refresh - user data hasn't changed
+            break;
+
+          default:
+            console.log('Unhandled auth event:', event);
+        }
       }
-    };
+    );
 
-    initializeAuth();
-  }, []);
+    // Cleanup function
+    return () => {
+      console.log('Cleaning up auth listener');
+      subscription.unsubscribe();
+      initializedRef.current = false;
+    };
+  }, []); // Empty dependency array - initialize once and only once
 
   // Fetch user profile from staff table
   const fetchUserProfile = async (authUser) => {
     if (!authUser) {
       setUser(null);
-      setLoading(false);
       return;
     }
     
     try {
       console.log('Fetching user profile for:', authUser.id);
       
-      // Get user details from staff table
       const { data, error } = await supabase
         .from('staff')
         .select('*')
         .eq('user_id', authUser.id)
         .single();
       
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        // If there's an error, use the auth user data with a default role
-        setUser({ 
-          id: authUser.id,
-          email: authUser.email,
-          role: authUser.user_metadata?.role || 'Cashier',
-          first_name: authUser.user_metadata?.first_name || 'Unknown',
-          last_name: authUser.user_metadata?.last_name || 'User',
-          status: 'Active'
-        });
-        setLoading(false);
-        return;
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        throw error;
       }
-
-      // If no staff record found
+      
       if (!data) {
         console.warn('No staff record found for user:', authUser.id);
-        setUser({ 
+        
+        // Create fallback user object
+        const fallbackUser = { 
           id: authUser.id,
           email: authUser.email,
           role: authUser.user_metadata?.role || 'Cashier',
           first_name: authUser.user_metadata?.first_name || 'Unknown',
           last_name: authUser.user_metadata?.last_name || 'User',
           status: 'Active'
+        };
+        
+        setUser(fallbackUser);
+        
+        // Try to create a staff record if missing
+        try {
+          const { error: insertError } = await supabase.from('staff').insert({
+            user_id: authUser.id,
+            first_name: authUser.user_metadata?.first_name || 'Unknown',
+            last_name: authUser.user_metadata?.last_name || 'User',
+            email: authUser.email,
+            position: authUser.user_metadata?.role || 'Cashier',
+            status: 'Active',
+            is_active: true
+          });
+          
+          if (!insertError) {
+            console.log('Created missing staff record for user:', authUser.id);
+          }
+        } catch (createErr) {
+          console.error('Failed to create staff record:', createErr);
+        }
+      } else {
+        // Map staff record to user object
+        setUser({
+          id: authUser.id,
+          email: authUser.email,
+          first_name: data.first_name || authUser.user_metadata?.first_name,
+          last_name: data.last_name || authUser.user_metadata?.last_name,
+          role: data.position || authUser.user_metadata?.role || 'Cashier',
+          status: data.status || 'Active',
+          profile_image: data.profile_image || null,
+          phone: data.phone || null,
+          staff_id: data.staff_id
         });
-        setLoading(false);
-        return;
       }
 
-      // Map staff record to user object
-      setUser({
-        id: authUser.id,
-        email: authUser.email,
-        first_name: data.first_name || authUser.user_metadata?.first_name,
-        last_name: data.last_name || authUser.user_metadata?.last_name,
-        role: data.position || authUser.user_metadata?.role || 'Cashier',
-        status: data.status || 'Active',
-        profile_image: data.profile_image || null,
-        phone: data.phone || null,
-        staff_id: data.staff_id
-      });
+      setConnectionStatus('connected');
     } catch (err) {
-      console.error('Exception in fetchUserProfile:', err);
-      // Fallback to basic user data
+      console.error('Error fetching user profile:', err);
+      
+      // Set connection status based on error type
+      if (err.message?.includes('network') || err.code === 'NETWORK_ERROR') {
+        setConnectionStatus('disconnected');
+      } else {
+        setConnectionStatus('degraded');
+      }
+      
+      // Fallback to basic user data from auth
       setUser({
         id: authUser.id,
         email: authUser.email,
@@ -139,8 +191,6 @@ export const AuthProvider = ({ children }) => {
         last_name: authUser.user_metadata?.last_name || 'User',
         status: 'Active'
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -149,7 +199,6 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('Attempting login for:', email);
       
-      // Add validation to ensure email and password are provided
       if (!email || !password) {
         return {
           success: false,
@@ -157,20 +206,23 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
-      // Use signInWithPassword for authentication
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
       });
 
       if (error) {
         console.error('Login error details:', error);
-        throw error;
+        return {
+          success: false,
+          error: error.message || 'Failed to sign in. Please check your credentials.'
+        };
       }
 
       console.log('Login successful for:', email);
+      setConnectionStatus('connected');
       
-      // Return success, actual user profile will be fetched through the auth state listener
+      // onAuthStateChange will handle the rest
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
@@ -185,76 +237,73 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       console.log('Logging out user');
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      toast.success('Logged out successfully');
+      
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.warn('Logout API error:', error);
+        toast.warning('Logged out with some errors. You may need to clear browser data.');
+      } else {
+        toast.success('Logged out successfully');
+      }
+      
+      // onAuthStateChange will handle clearing user/session state
     } catch (error) {
       console.error('Logout error:', error);
-      toast.error('Failed to log out');
-    }
-  };
-
-  // Signup function
-  const signup = async (email, password, firstName, lastName) => {
-    try {
-      console.log('Attempting signup for:', email);
+      toast.error('Failed to complete logout properly');
       
-      // Create user in Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            role: 'Cashier' // Default role for self-signup
-          }
-        }
-      });
-
-      if (error) {
-        console.error('Signup error details:', error);
-        throw error;
-      }
-
-      console.log('Signup successful, user created:', data.user?.id);
-
-      // If signup is successful, we need to create a corresponding staff record
-      if (data?.user?.id) {
-        try {
-          const { error: staffError } = await supabase.from('staff').insert({
-            user_id: data.user.id,
-            first_name: firstName,
-            last_name: lastName,
-            position: 'Cashier', // Default position for self-signup
-            email: email,
-            status: 'Pending', // Set as pending until admin approval
-            is_active: false, // Inactive until approved
-            access_level: 1 // Lowest access level
-          });
-          
-          if (staffError) {
-            console.error('Error creating staff record:', staffError);
-          } else {
-            console.log('Staff record created successfully');
-          }
-          
-          toast.success('Account created! Please check your email to confirm your account.');
-        } catch (staffError) {
-          console.error('Exception creating staff record:', staffError);
-        }
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error('Signup error:', error);
-      return {
-        success: false,
-        error: error.message || 'Failed to sign up. Please try again.'
-      };
+      // Force clear state anyway for better UX
+      setUser(null);
+      setSession(null);
     }
   };
+
+  // Refresh the session manually
+  const refreshSession = async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        console.error('Session refresh error:', error);
+        setConnectionStatus('degraded');
+        return false;
+      }
+      
+      console.log('Session refresh successful');
+      setConnectionStatus('connected');
+      // onAuthStateChange will handle the TOKEN_REFRESHED event
+      return true;
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+      setConnectionStatus('disconnected');
+      return false;
+    }
+  };
+
+  // Signup function (disabled)
+  const signup = async (email, password, userData = {}) => {
+    return {
+      success: false,
+      error: 'Direct signup is disabled. New accounts can only be created by an administrator.'
+    };
+  };
+
+  // Connection status toast notifications
+  useEffect(() => {
+    if (connectionStatus === 'disconnected' && user) {
+      toast.error(
+        'Connection to server lost. Please check your internet connection.', 
+        { 
+          duration: 8000,
+          id: 'connection-lost'
+        }
+      );
+    }
+    
+    if (connectionStatus === 'connected' && user) {
+      toast.dismiss('connection-lost');
+    }
+  }, [connectionStatus, user]);
 
   // Context value
   const value = {
@@ -264,7 +313,9 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     signup,
-    isAuthenticated: !!user,
+    refreshSession,
+    isAuthenticated: !!session, // Use session for accuracy
+    connectionStatus,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

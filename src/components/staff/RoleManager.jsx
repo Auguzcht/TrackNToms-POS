@@ -5,6 +5,7 @@ import Card from '../common/Card';
 import Modal from '../common/Modal';
 import { toast } from 'react-hot-toast';
 import { useStaff } from '../../hooks/useStaff';
+import Swal from 'sweetalert2';
 
 const permissionGroups = {
   orders: [
@@ -20,6 +21,13 @@ const permissionGroups = {
     { id: 'inventory.create', name: 'Create Items' },
     { id: 'inventory.edit', name: 'Edit Items' },
     { id: 'inventory.delete', name: 'Delete Items' },
+  ],
+  suppliers: [
+    { id: 'suppliers.view', name: 'View Suppliers' },
+    { id: 'suppliers.create', name: 'Create Suppliers' },
+    { id: 'suppliers.edit', name: 'Edit Suppliers' },
+    { id: 'suppliers.delete', name: 'Delete Suppliers' },
+    { id: 'suppliers.manage', name: 'Manage As Supplier' }, // Special permission for supplier accounts
   ],
   menu: [
     { id: 'menu.view', name: 'View Menu' },
@@ -45,7 +53,14 @@ const permissionGroups = {
     { id: 'settings.view', name: 'View Settings' },
     { id: 'settings.edit', name: 'Edit Settings' },
     { id: 'settings.advanced', name: 'Advanced Settings' },
-  ]
+  ],
+  pullouts: [
+    { id: 'pullouts.view', name: 'View Pullouts' },
+    { id: 'pullouts.create', name: 'Create Pullouts' },
+    { id: 'pullouts.edit', name: 'Edit Pullouts' },
+    { id: 'pullouts.delete', name: 'Delete Pullouts' },
+    { id: 'pullouts.approve', name: 'Approve Pullouts' },
+  ],
 };
 
 const RoleManager = () => {
@@ -144,8 +159,61 @@ const RoleManager = () => {
     }
   };
 
+  // Function to create a Supplier role with appropriate permissions
+  const handleCreateSupplierRole = async () => {
+    try {
+      // Check if Supplier role already exists
+      const existingRole = roles.find(role => role.name === 'Supplier');
+      
+      if (existingRole) {
+        toast.info('A Supplier role already exists! You can edit it instead.');
+        handleEditRole(existingRole);
+        return;
+      }
+      
+      // Define supplier role with permissions
+      const supplierRole = {
+        name: 'Supplier',
+        description: 'Account for supplier users with permissions to manage their inventory and deliveries',
+        permissions: [
+          'inventory.view',
+          'suppliers.view',
+          'suppliers.manage', // Special permission for suppliers to manage their own account
+          'reports.view',
+          'reports.inventory'
+        ]
+      };
+      
+      await createRole(supplierRole);
+      toast.success('Supplier role created successfully!');
+      fetchRoles(); // Refresh the roles list
+    } catch (err) {
+      console.error('Error creating supplier role:', err);
+      toast.error(`Failed to create supplier role: ${err.message || 'Unknown error'}`);
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
+    
+    // Special check for Supplier role to prevent accidental deletion of linked supplier accounts
+    if (deleteTarget.name === 'Supplier' && deleteTarget.staff_count > 0) {
+      // Show a special warning for supplier role
+      const result = await Swal.fire({
+        title: 'Warning: Supplier Role',
+        text: 'This role may have staff members linked to supplier accounts. Deleting it could break those connections. Are you absolutely sure?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, Delete Anyway',
+        cancelButtonText: 'Cancel'
+      });
+      
+      if (!result.isConfirmed) {
+        return;
+      }
+    }
     
     try {
       await deleteRole(deleteTarget.id);
@@ -218,7 +286,11 @@ const RoleManager = () => {
       {/* Roles Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {roles.map(role => (
-          <Card key={role.id} className="relative">
+          <Card 
+            key={role.id} 
+            className={`relative ${role.name === 'Supplier' ? 'border-blue-300 dark:border-blue-700' : ''}`}
+          >
+            
             <div className="absolute top-3 right-3 flex space-x-1">
               <button 
                 onClick={() => handleEditRole(role)}
@@ -243,17 +315,17 @@ const RoleManager = () => {
               )}
             </div>
 
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{role.name}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
+            <h3 className="text-lg font-medium text-[#571C1F] dark:text-[#571C1F] mb-2">{role.name}</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-700 mb-4 line-clamp-2">
               {role.description || 'No description provided.'}
             </p>
-            
+          
             <div className="space-y-2">
               <div className="flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className="text-sm text-gray-700 dark:text-gray-300">
+                <span className="text-sm text-gray-500 dark:text-gray-500">
                   {role.permissions?.length || 0} permissions granted
                 </span>
               </div>
@@ -263,7 +335,7 @@ const RoleManager = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-sm text-gray-500 dark:text-gray-500">
                     {role.staff_count} {role.staff_count === 1 ? 'staff member' : 'staff members'}
                   </span>
                 </div>
@@ -271,7 +343,7 @@ const RoleManager = () => {
             </div>
             
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+              <h4 className="text-xs font-medium text-[#571C1F] dark:text-gray-400 uppercase tracking-wider mb-2">
                 Permission Groups
               </h4>
               <div className="flex flex-wrap gap-2">
@@ -317,6 +389,33 @@ const RoleManager = () => {
             <Button onClick={handleNewRole}>
               Create New Role
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Supplier Role Quick Creation */}
+      {roles.length > 0 && !roles.some(role => role.name === 'Supplier') && (
+        <div className="my-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-md">
+          <div className="flex items-start md:items-center flex-col md:flex-row">
+            <div className="flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="mt-3 md:mt-0 ml-0 md:ml-3 flex-1 md:flex md:justify-between">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                To connect suppliers to staff accounts, you need to create a Supplier role
+              </p>
+              <p className="mt-3 text-sm md:mt-0 md:ml-6">
+                <Button 
+                  size="sm" 
+                  onClick={handleCreateSupplierRole}
+                  className="whitespace-nowrap"
+                >
+                  Create Supplier Role
+                </Button>
+              </p>
+            </div>
           </div>
         </div>
       )}

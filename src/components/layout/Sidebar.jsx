@@ -41,8 +41,13 @@ const Sidebar = ({ isOpen }) => {
         },
         { 
           name: 'Menu Items', 
-          path: '/inventory?tab=items',
+          path: '/inventory?tab=menu-items', // Fixed path to match actual URL parameter
           requiredPermission: 'inventory.view'
+        },
+        { 
+          name: 'Pullouts', 
+          path: '/inventory?tab=pullouts', // Moved from suppliers to inventory
+          requiredPermission: 'pullouts.view'
         }
       ] 
     },
@@ -66,12 +71,8 @@ const Sidebar = ({ isOpen }) => {
           name: 'Consignments', 
           path: '/suppliers?tab=consignments',
           requiredPermission: 'suppliers.view'
-        },
-        { 
-          name: 'Pullouts', 
-          path: '/suppliers?tab=pullouts',
-          requiredPermission: 'pullouts.view'
         }
+        // Removed Pullouts from here
       ] 
     },
     { 

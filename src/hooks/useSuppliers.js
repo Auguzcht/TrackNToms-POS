@@ -22,16 +22,41 @@ export const useSuppliers = () => {
     setError(null);
     
     try {
-      const { data, error: fetchError } = await supabase
+      // First fetch suppliers (without trying to join with staff)
+      const { data: suppliersData, error: fetchError } = await supabase
         .from('suppliers')
         .select('*')
         .order('company_name', { ascending: true });
       
       if (fetchError) throw fetchError;
       
-      console.log('Suppliers fetched:', data);
-      setSuppliers(data || []);
-      return data || [];
+      // For suppliers with user_id, fetch corresponding staff separately
+      const suppliersWithStaffInfo = await Promise.all(suppliersData.map(async supplier => {
+        if (!supplier.user_id) {
+          return {
+            ...supplier,
+            connected_staff: null,
+            staff: null
+          };
+        }
+        
+        // Look up staff by user_id
+        const { data: staffData } = await supabase
+          .from('staff')
+          .select('staff_id, first_name, last_name, email')
+          .eq('user_id', supplier.user_id)
+          .single();
+        
+        return {
+          ...supplier,
+          staff: staffData || null,
+          connected_staff: staffData ? `${staffData.first_name} ${staffData.last_name}` : null
+        };
+      }));
+      
+      console.log('Suppliers fetched with staff info:', suppliersWithStaffInfo);
+      setSuppliers(suppliersWithStaffInfo || []);
+      return suppliersWithStaffInfo || [];
     } catch (err) {
       console.error('Error fetching suppliers:', err);
       setError('Failed to fetch suppliers');
@@ -232,7 +257,7 @@ export const useSuppliers = () => {
     try {
       // Check if supplier has associated consignments or purchase orders
       const { data: relatedConsignments, error: consignmentError } = await supabase
-        .from('consignments')
+        .from('consignment') // FIXED: Changed from 'consignments' to 'consignment'
         .select('consignment_id')
         .eq('supplier_id', id)
         .limit(1);
@@ -244,7 +269,7 @@ export const useSuppliers = () => {
       }
       
       const { data: relatedPurchases, error: purchaseError } = await supabase
-        .from('purchases')
+        .from('purchase') // FIXED: Changed from 'purchases' to 'purchase'
         .select('purchase_id')
         .eq('supplier_id', id)
         .limit(1);
@@ -288,9 +313,9 @@ export const useSuppliers = () => {
     setError(null);
     
     try {
-      // Fetch consignments with supplier details using join
+      // Fetch consignments with supplier details using join - FIXED TABLE NAME
       const { data, error: fetchError } = await supabase
-        .from('consignments')
+        .from('consignment') // Changed from 'consignments' to 'consignment'
         .select(`
           *,
           suppliers:supplier_id (
@@ -302,11 +327,11 @@ export const useSuppliers = () => {
       
       if (fetchError) throw fetchError;
       
-      // For each consignment, also fetch its items
+      // For each consignment, also fetch its items - FIXED TABLE NAME
       const consignmentsWithItems = await Promise.all(
         data.map(async (consignment) => {
           const { data: items, error: itemsError } = await supabase
-            .from('consignment_items')
+            .from('consignment_details') // Changed from 'consignment_items' to 'consignment_details'
             .select(`
               *,
               items:item_id (
@@ -356,9 +381,9 @@ export const useSuppliers = () => {
     setError(null);
     
     try {
-      // Fetch the consignment with supplier details
+      // Fetch the consignment with supplier details - FIXED TABLE NAME
       const { data: consignment, error: consignmentError } = await supabase
-        .from('consignments')
+        .from('consignment') // Changed from 'consignments' to 'consignment'
         .select(`
           *,
           suppliers:supplier_id (
@@ -375,9 +400,9 @@ export const useSuppliers = () => {
         throw new Error(`Consignment with ID ${id} not found`);
       }
       
-      // Fetch consignment items
+      // Fetch consignment items - FIXED TABLE NAME
       const { data: items, error: itemsError } = await supabase
-        .from('consignment_items')
+        .from('consignment_details') // Changed from 'consignment_items' to 'consignment_details'
         .select(`
           *,
           items:item_id (
@@ -424,13 +449,17 @@ export const useSuppliers = () => {
       // Add timestamps to consignment header
       const headerWithTimestamps = {
         ...consignmentHeader,
+        // Make sure we set both manager_id and approved_by if one is provided
+        // since the database has both columns
+        manager_id: consignmentHeader.manager_id || consignmentHeader.approved_by,
+        approved_by: consignmentHeader.approved_by || consignmentHeader.manager_id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
       
-      // Insert consignment header
+      // Insert consignment header - FIXED TABLE NAME
       const { data: newConsignment, error: consignmentError } = await supabase
-        .from('consignments')
+        .from('consignment') // Changed from 'consignments' to 'consignment'
         .insert([headerWithTimestamps])
         .select()
         .single();
@@ -441,20 +470,18 @@ export const useSuppliers = () => {
         // Prepare items for insertion (add consignment_id to each)
         const itemsWithConsignmentId = items.map(item => ({
           ...item,
-          consignment_id: newConsignment.consignment_id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          consignment_id: newConsignment.consignment_id
+          // removed timestamps that don't exist in the table
         }));
         
-        // Insert consignment items
+        // Insert consignment items - FIXED TABLE NAME
         const { error: itemsError } = await supabase
-          .from('consignment_items')
+          .from('consignment_details') // Changed from 'consignment_items' to 'consignment_details'
           .insert(itemsWithConsignmentId);
         
         if (itemsError) {
           console.error('Error adding consignment items:', itemsError);
-          // Continue even if items fail - we'll have the consignment header at least
-          toast.warning('Consignment created but some items could not be added');
+          toast.error('Consignment created but some items could not be added');
         }
       }
       
@@ -493,12 +520,16 @@ export const useSuppliers = () => {
       // Add timestamp to consignment header
       const headerWithTimestamp = {
         ...consignmentHeader,
+        // Make sure we set both manager_id and approved_by if one is provided
+        // since the database has both columns
+        manager_id: consignmentHeader.manager_id || consignmentHeader.approved_by,
+        approved_by: consignmentHeader.approved_by || consignmentHeader.manager_id,
         updated_at: new Date().toISOString()
       };
       
-      // Update consignment header
+      // Update consignment header - FIXED TABLE NAME
       const { data: updatedConsignment, error: updateError } = await supabase
-        .from('consignments')
+        .from('consignment') // Changed from 'consignments' to 'consignment'
         .update(headerWithTimestamp)
         .eq('consignment_id', id)
         .select()
@@ -507,9 +538,9 @@ export const useSuppliers = () => {
       if (updateError) throw updateError;
       
       if (items) {
-        // First delete all existing items
+        // First delete all existing items - FIXED TABLE NAME
         const { error: deleteError } = await supabase
-          .from('consignment_items')
+          .from('consignment_details') // Changed from 'consignment_items' to 'consignment_details'
           .delete()
           .eq('consignment_id', id);
         
@@ -519,19 +550,18 @@ export const useSuppliers = () => {
           // Prepare items for insertion
           const itemsWithConsignmentId = items.map(item => ({
             ...item,
-            consignment_id: id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            consignment_id: id
+            // removed timestamps that don't exist in the table
           }));
           
-          // Insert updated items
+          // Insert updated items - FIXED TABLE NAME
           const { error: itemsError } = await supabase
-            .from('consignment_items')
+            .from('consignment_details') // Changed from 'consignment_items' to 'consignment_details'
             .insert(itemsWithConsignmentId);
           
           if (itemsError) {
             console.error('Error updating consignment items:', itemsError);
-            toast.warning('Consignment updated but some items could not be added');
+            toast.error('Consignment updated but some items could not be added');
           }
         }
       }
@@ -566,17 +596,17 @@ export const useSuppliers = () => {
     setError(null);
     
     try {
-      // Delete consignment items first (foreign key constraint)
+      // Delete consignment items first (foreign key constraint) - FIXED TABLE NAME
       const { error: itemsDeleteError } = await supabase
-        .from('consignment_items')
+        .from('consignment_details') // Changed from 'consignment_items' to 'consignment_details'
         .delete()
         .eq('consignment_id', id);
       
       if (itemsDeleteError) throw itemsDeleteError;
       
-      // Delete consignment header
+      // Delete consignment header - FIXED TABLE NAME
       const { error: deleteError } = await supabase
-        .from('consignments')
+        .from('consignment') // Changed from 'consignments' to 'consignment'
         .delete()
         .eq('consignment_id', id);
       
@@ -607,35 +637,46 @@ export const useSuppliers = () => {
     setError(null);
     
     try {
-      // Fetch purchase orders with supplier details
+      // Fetch purchase orders with supplier details but WITHOUT staff joins
       const { data, error: fetchError } = await supabase
-        .from('purchases')
+        .from('purchase')
         .select(`
           *,
-          suppliers:supplier_id (
-            supplier_id,
-            company_name
-          ),
-          staff:staff_id (
-            staff_id,
-            first_name,
-            last_name,
-            email
-          ),
-          approvers:manager_id (
-            staff_id,
-            first_name,
-            last_name,
-            email
-          )
+          suppliers:supplier_id (supplier_id, company_name)
         `)
         .order('purchase_date', { ascending: false });
       
       if (fetchError) throw fetchError;
       
-      // For each purchase order, also fetch its items
-      const purchasesWithItems = await Promise.all(
+      // For each purchase, separately fetch staff info from staff table
+      const purchasesWithDetails = await Promise.all(
         data.map(async (purchase) => {
+          // Fetch staff info separately if needed
+          let staffInfo = null;
+          let approverInfo = null;
+          
+          // Only try to get staff info if we have the ID
+          if (purchase.created_by) {
+            const { data: staff } = await supabase
+              .from('staff')
+              .select('staff_id, first_name, last_name, email')
+              .eq('user_id', purchase.created_by)
+              .single();
+              
+            if (staff) staffInfo = staff;
+          }
+          
+          // Only try to get approver info if we have the ID
+          if (purchase.approved_by) {
+            const { data: approver } = await supabase
+              .from('staff')
+              .select('staff_id, first_name, last_name, email')
+              .eq('user_id', purchase.approved_by)
+              .single();
+              
+            if (approver) approverInfo = approver;
+          }
+
           const { data: items, error: itemsError } = await supabase
             .from('purchase_details')
             .select(`
@@ -654,12 +695,10 @@ export const useSuppliers = () => {
               ...purchase,
               items: [],
               supplier_name: purchase.suppliers?.company_name,
-              staff_name: purchase.staff ? 
-                `${purchase.staff.first_name} ${purchase.staff.last_name}` : 
-                'Unknown',
-              manager_name: purchase.approvers ? 
-                `${purchase.approvers.first_name} ${purchase.approvers.last_name}` : 
-                null
+              staff: staffInfo,
+              approver: approverInfo,
+              staff_name: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : 'Unknown',
+              manager_name: approverInfo ? `${approverInfo.first_name} ${approverInfo.last_name}` : null
             };
           }
           
@@ -679,19 +718,17 @@ export const useSuppliers = () => {
             ...purchase,
             items: formattedItems,
             supplier_name: purchase.suppliers?.company_name,
-            staff_name: purchase.staff ? 
-              `${purchase.staff.first_name} ${purchase.staff.last_name}` : 
-              'Unknown',
-            manager_name: purchase.approvers ? 
-              `${purchase.approvers.first_name} ${purchase.approvers.last_name}` : 
-              null
+            staff: staffInfo,
+            approver: approverInfo,
+            staff_name: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : 'Unknown',
+            manager_name: approverInfo ? `${approverInfo.first_name} ${approverInfo.last_name}` : null
           };
         })
       );
       
-      console.log('Purchase orders fetched:', purchasesWithItems);
-      setPurchaseOrders(purchasesWithItems || []);
-      return purchasesWithItems || [];
+      console.log('Purchase orders fetched:', purchasesWithDetails);
+      setPurchaseOrders(purchasesWithDetails || []);
+      return purchasesWithDetails || [];
     } catch (err) {
       console.error('Error fetching purchase orders:', err);
       setError('Failed to fetch purchase orders');
@@ -712,27 +749,12 @@ export const useSuppliers = () => {
     setError(null);
     
     try {
-      // Fetch the purchase order with related details
+      // Fetch the purchase order without staff joins
       const { data: purchase, error: purchaseError } = await supabase
-        .from('purchases')
+        .from('purchase')
         .select(`
           *,
-          suppliers:supplier_id (
-            supplier_id,
-            company_name
-          ),
-          staff:staff_id (
-            staff_id,
-            first_name,
-            last_name,
-            email
-          ),
-          approvers:manager_id (
-            staff_id,
-            first_name,
-            last_name,
-            email
-          )
+          suppliers:supplier_id (supplier_id, company_name)
         `)
         .eq('purchase_id', id)
         .single();
@@ -743,7 +765,32 @@ export const useSuppliers = () => {
         throw new Error(`Purchase order with ID ${id} not found`);
       }
       
-      // Fetch purchase items
+      // Fetch staff info separately if needed
+      let staffInfo = null;
+      let approverInfo = null;
+      
+      // Only try to get staff info if we have the ID
+      if (purchase.created_by) {
+        const { data: staff } = await supabase
+          .from('staff')
+          .select('staff_id, first_name, last_name, email')
+          .eq('user_id', purchase.created_by)
+          .single();
+          
+        if (staff) staffInfo = staff;
+      }
+      
+      // Only try to get approver info if we have the ID
+      if (purchase.approved_by) {
+        const { data: approver } = await supabase
+          .from('staff')
+          .select('staff_id, first_name, last_name, email')
+          .eq('user_id', purchase.approved_by)
+          .single();
+          
+        if (approver) approverInfo = approver;
+      }
+
       const { data: items, error: itemsError } = await supabase
         .from('purchase_details')
         .select(`
@@ -816,7 +863,7 @@ export const useSuppliers = () => {
       
       // Insert purchase header
       const { data: newPurchase, error: purchaseError } = await supabase
-        .from('purchases')
+        .from('purchase') // FIXED: Changed from 'purchases' to 'purchase'
         .insert([headerWithTimestamps])
         .select()
         .single();
@@ -904,7 +951,7 @@ export const useSuppliers = () => {
     try {
       // Get original purchase order to check status change
       const { data: originalPurchase, error: getError } = await supabase
-        .from('purchases')
+        .from('purchase') // FIXED: Changed from 'purchases' to 'purchase'
         .select('status')
         .eq('purchase_id', id)
         .single();
@@ -922,7 +969,7 @@ export const useSuppliers = () => {
       
       // Update purchase header
       const { data: updatedPurchase, error: updateError } = await supabase
-        .from('purchases')
+        .from('purchase') // FIXED: Changed from 'purchases' to 'purchase'
         .update(headerWithTimestamp)
         .eq('purchase_id', id)
         .select()
@@ -1027,7 +1074,7 @@ export const useSuppliers = () => {
     try {
       // Check if purchase order is already completed
       const { data: purchase, error: checkError } = await supabase
-        .from('purchases')
+        .from('purchase') // FIXED: Changed from 'purchases' to 'purchase'
         .select('status')
         .eq('purchase_id', id)
         .single();
@@ -1048,7 +1095,7 @@ export const useSuppliers = () => {
       
       // Delete purchase header
       const { error: deleteError } = await supabase
-        .from('purchases')
+        .from('purchase') // FIXED: Changed from 'purchases' to 'purchase'
         .delete()
         .eq('purchase_id', id);
       
@@ -1090,10 +1137,10 @@ export const useSuppliers = () => {
       
       // Update purchase status to completed
       const { data: updatedPurchase, error: updateError } = await supabase
-        .from('purchases')
+        .from('purchase') // FIXED: Changed from 'purchases' to 'purchase'
         .update({ 
           status: 'completed', 
-          manager_id: managerId,
+          approved_by: managerId, // CORRECT: This is now fixed to use approved_by
           updated_at: new Date().toISOString() 
         })
         .eq('purchase_id', id)
@@ -1153,6 +1200,211 @@ export const useSuppliers = () => {
     }
   }, [getPurchaseOrder]);
 
+  /**
+   * Supplier accepts a purchase order
+   * @param {number|string} id - Purchase order ID
+   * @param {string} supplierId - Supplier ID accepting the order
+   * @returns {Object} Updated purchase order
+   */
+  const acceptPurchaseOrder = useCallback(async (id, supplierId) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Check if purchase order exists and is approved
+      const purchase = await getPurchaseOrder(id);
+      
+      if (!purchase) {
+        throw new Error('Purchase order not found');
+      }
+      
+      if (purchase.status !== 'approved') {
+        throw new Error('Only approved purchase orders can be accepted');
+      }
+      
+      // Check if the supplier matches
+      if (purchase.supplier_id.toString() !== supplierId.toString()) {
+        throw new Error('This purchase order is not for your supplier account');
+      }
+      
+      // Update purchase order status
+      const { data: updatedPurchase, error: updateError } = await supabase
+        .from('purchase')
+        .update({ 
+          status: 'accepted',
+          updated_at: new Date().toISOString() 
+        })
+        .eq('purchase_id', id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      
+      // Update local state
+      setPurchaseOrders(prev => prev.map(p => 
+        p.purchase_id === Number(id) ? {...p, status: 'accepted'} : p
+      ));
+      
+      // Notify staff that created the purchase order
+      if (purchase.created_by) {
+        await supabase.rpc('create_notification', {
+          p_user_id: purchase.created_by,
+          p_title: 'Purchase Order Accepted',
+          p_message: `Purchase order #${id} has been accepted by supplier`,
+          p_link: `/suppliers?tab=purchase-orders&id=${id}`
+        });
+      }
+      
+      toast.success('Purchase order accepted successfully');
+      return updatedPurchase;
+    } catch (err) {
+      console.error(`Error accepting purchase order with ID ${id}:`, err);
+      setError(`Failed to accept purchase order: ${err.message}`);
+      toast.error(`Failed to accept purchase order: ${err.message}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [getPurchaseOrder]);
+
+  /**
+   * Supplier rejects a purchase order
+   * @param {number|string} id - Purchase order ID
+   * @param {string} supplierId - Supplier ID rejecting the order
+   * @param {string} reason - Rejection reason
+   * @returns {Object} Updated purchase order
+   */
+  const rejectPurchaseOrder = useCallback(async (id, supplierId, reason = '') => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Check if purchase order exists and is approved
+      const purchase = await getPurchaseOrder(id);
+      
+      if (!purchase) {
+        throw new Error('Purchase order not found');
+      }
+      
+      if (purchase.status !== 'approved') {
+        throw new Error('Only approved purchase orders can be rejected');
+      }
+      
+      // Check if the supplier matches
+      if (purchase.supplier_id.toString() !== supplierId.toString()) {
+        throw new Error('This purchase order is not for your supplier account');
+      }
+      
+      // Update purchase order status
+      const { data: updatedPurchase, error: updateError } = await supabase
+        .from('purchase')
+        .update({ 
+          status: 'rejected', 
+          notes: reason ? `${purchase.notes || ''}\n\nREJECTION REASON: ${reason}` : purchase.notes,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('purchase_id', id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      
+      // Update local state
+      setPurchaseOrders(prev => prev.map(p => 
+        p.purchase_id === Number(id) ? {...p, status: 'rejected'} : p
+      ));
+      
+      // Notify staff that created the purchase order
+      if (purchase.created_by) {
+        await supabase.rpc('create_notification', {
+          p_user_id: purchase.created_by,
+          p_title: 'Purchase Order Rejected',
+          p_message: `Purchase order #${id} has been rejected by supplier. ${reason ? `Reason: ${reason}` : ''}`,
+          p_link: `/suppliers?tab=purchase-orders&id=${id}`
+        });
+      }
+      
+      toast.success('Purchase order rejected successfully');
+      return updatedPurchase;
+    } catch (err) {
+      console.error(`Error rejecting purchase order with ID ${id}:`, err);
+      setError(`Failed to reject purchase order: ${err.message}`);
+      toast.error(`Failed to reject purchase order: ${err.message}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [getPurchaseOrder]);
+
+  /**
+   * Approve a purchase order
+   * @param {number|string} id - Purchase order ID
+   * @returns {Object} Updated purchase order
+   */
+  const approvePurchaseOrder = useCallback(async (id) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Check if purchase order exists and is pending
+      const purchase = await getPurchaseOrder(id);
+      
+      if (!purchase) {
+        throw new Error('Purchase order not found');
+      }
+      
+      if (purchase.status !== 'pending') {
+        throw new Error('Only pending purchase orders can be approved');
+      }
+      
+      // Update purchase order status to approved
+      const { data: updatedPurchase, error: updateError } = await supabase
+        .from('purchase')
+        .update({ 
+          status: 'approved',
+          updated_at: new Date().toISOString() 
+        })
+        .eq('purchase_id', id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      
+      // Update local state
+      setPurchaseOrders(prev => prev.map(p => 
+        p.purchase_id === Number(id) ? {...p, status: 'approved'} : p
+      ));
+      
+      // Notify supplier if there's one assigned with a user account
+      if (purchase.suppliers && purchase.suppliers.user_id) {
+        try {
+          await supabase.rpc('create_notification', {
+            p_user_id: purchase.suppliers.user_id,
+            p_title: 'Purchase Order Approved',
+            p_message: `Purchase order #${id} has been approved and is waiting for your action.`,
+            p_link: `/supplier/purchase-orders?id=${id}`
+          });
+        } catch (notifyError) {
+          console.error('Error sending supplier notification:', notifyError);
+          // Continue despite notification error
+        }
+      }
+      
+      // Fetch the complete updated purchase order
+      const completePurchase = await getPurchaseOrder(id);
+      
+      toast.success('Purchase order approved successfully');
+      return completePurchase;
+    } catch (err) {
+      console.error(`Error approving purchase order with ID ${id}:`, err);
+      setError(`Failed to approve purchase order: ${err.message}`);
+      toast.error(`Failed to approve purchase order: ${err.message}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [getPurchaseOrder]);
+
   return {
     suppliers,
     loading,
@@ -1179,7 +1431,10 @@ export const useSuppliers = () => {
     createPurchaseOrder,
     updatePurchaseOrder,
     deletePurchaseOrder,
-    markPurchaseReceived
+    markPurchaseReceived,
+    acceptPurchaseOrder,
+    rejectPurchaseOrder,
+    approvePurchaseOrder
   };
 };
 

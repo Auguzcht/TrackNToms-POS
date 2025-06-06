@@ -4,10 +4,11 @@ import * as Yup from 'yup';
 import Button from '../common/Button';
 import { toast } from 'react-hot-toast';
 import { useStaff } from '../../hooks/useStaff';
+import { useSuppliers } from '../../hooks/useSuppliers'; // Import useSuppliers
 import FileUpload from '../common/FileUpload';
 import ImageWithFallback from '../common/ImageWithFallback';
 
-// Validation schema remains unchanged
+// 1. Update the validation schema to make username optional
 const staffSchema = Yup.object({
   first_name: Yup.string()
     .required('First name is required')
@@ -23,11 +24,11 @@ const staffSchema = Yup.object({
     .required('Phone number is required'),
   role_id: Yup.number()
     .required('Role is required'),
+  // Make username optional
   username: Yup.string()
-    .required('Username is required')
     .min(4, 'Username should be at least 4 characters')
     .max(20, 'Username should be 20 characters or less')
-    .matches(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+    .matches(/^[a-zA-Z0-9_]*$/, 'Username can only contain letters, numbers, and underscores'),
   password: Yup.string()
     .when('isNewStaff', {
       is: true,
@@ -50,14 +51,67 @@ const staffSchema = Yup.object({
 
 const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, readOnly = false }) => {
   const { roles, fetchRoles, fetchStaffById, createStaff, updateStaff, loading } = useStaff();
+  const { suppliers, fetchSuppliers } = useSuppliers(); // Add this line
   const [staffData, setStaffData] = useState(null);
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [profileImageUrl, setProfileImageUrl] = useState('');
   const [profileImagePath, setProfileImagePath] = useState('');
+  const [isSupplierRole, setIsSupplierRole] = useState(false); // Track if current role is a supplier role
 
   // Check if we're creating a new staff member or editing an existing one
   const isNewStaff = staffId === null;
+
+  // Initialize formik BEFORE the useEffect hooks that depend on it
+  const formik = useFormik({
+    initialValues: {
+      first_name: staffData?.first_name || '',
+      last_name: staffData?.last_name || '',
+      email: staffData?.email || '',
+      phone: staffData?.phone || '',
+      role_id: staffData?.role_id || '',
+      username: staffData?.username || '',
+      password: '',
+      confirm_password: '',
+      status: staffData?.status || 'Active',
+      isNewStaff,
+      profile_image: staffData?.profile_image || '',
+      supplier_id: staffData?.supplier_id || '', // Include supplier_id
+    },
+    validationSchema: staffSchema,
+    enableReinitialize: true,
+    onSubmit: async (values) => {
+      // Skip submission if in readOnly mode
+      if (readOnly) return;
+      
+      try {
+        // Create data object to send to API
+        const staffData = {
+          ...values,
+          // If we have a new uploaded image, use that path
+          profile_image: profileImageUrl || values.profile_image,
+        };
+        
+        // Log the supplier connection if role is Supplier
+        if (isSupplierRole) {
+          console.log(`Linking staff to supplier: ${staffData.supplier_id}`);
+        }
+        
+        let result;
+        if (isNewStaff) {
+          result = await createStaff(staffData);
+        } else {
+          result = await updateStaff(staffId, staffData);
+        }
+        
+        toast.success(`Staff member ${values.first_name} ${values.last_name} saved successfully`);
+        onSave(result);
+      } catch (error) {
+        console.error("Error saving staff:", error);
+        toast.error(`Failed to save staff: ${error.message || "Unknown error"}`);
+      }
+    },
+  });
 
   useEffect(() => {
     // Fetch roles for the role dropdown
@@ -88,50 +142,17 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
     }
   }, [fetchRoles, fetchStaffById, staffId, isNewStaff]);
 
-  // Initialize formik
-  const formik = useFormik({
-    initialValues: {
-      first_name: staffData?.first_name || '',
-      last_name: staffData?.last_name || '',
-      email: staffData?.email || '',
-      phone: staffData?.phone || '',
-      role_id: staffData?.role_id || '',
-      username: staffData?.username || '',
-      password: '',
-      confirm_password: '',
-      status: staffData?.status || 'Active',
-      isNewStaff,
-      profile_image: staffData?.profile_image || '',
-    },
-    validationSchema: staffSchema,
-    enableReinitialize: true,
-    onSubmit: async (values) => {
-      // Skip submission if in readOnly mode
-      if (readOnly) return;
-      
-      try {
-        // Create data object to send to API
-        const staffData = {
-          ...values,
-          // If we have a new uploaded image, use that path
-          profile_image: profileImageUrl || values.profile_image,
-        };
-        
-        let result;
-        if (isNewStaff) {
-          result = await createStaff(staffData);
-        } else {
-          result = await updateStaff(staffId, staffData);
-        }
-        
-        toast.success(`Staff member ${values.first_name} ${values.last_name} saved successfully`);
-        onSave(result);
-      } catch (error) {
-        console.error("Error saving staff:", error);
-        toast.error(`Failed to save staff: ${error.message || "Unknown error"}`);
-      }
-    },
-  });
+  // Load suppliers if needed when component mounts
+  useEffect(() => {
+    fetchSuppliers();
+  }, [fetchSuppliers]);
+
+  // Detect role changes - NOW this can safely access formik
+  useEffect(() => {
+    // Check if the selected role is a Supplier role
+    const selectedRole = roles.find(role => role.id === parseInt(formik.values.role_id));
+    setIsSupplierRole(selectedRole?.name === 'Supplier');
+  }, [formik.values.role_id, roles]);
 
   // Handle file upload completion
   const handleImageUploadComplete = (result) => {
@@ -215,13 +236,13 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
     </div>
   );
 
-  // Input component with consistent styling - separate the icon from the input styling
+  // Input component with improved styling and fixed layout
   const InputField = ({ name, type = "text", placeholder = "", icon, ...props }) => (
     <div className="relative">
       {icon && (
-        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 z-10">
           {icon}
-        </span>
+        </div>
       )}
       <input
         id={name}
@@ -237,15 +258,15 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
             : 'border-gray-300'
         }`}
         placeholder={placeholder}
+        value={formik.values[name] || ''}
         onChange={formik.handleChange}
         onBlur={formik.handleBlur}
-        value={formik.values[name]}
         readOnly={readOnly}
         disabled={readOnly}
         {...props}
       />
       {!readOnly && formik.touched[name] && formik.errors[name] && (
-        <p className="mt-1 text-xs text-red-500">{formik.errors[name]}</p>
+        <div className="mt-1 text-xs text-red-500">{formik.errors[name]}</div>
       )}
     </div>
   );
@@ -304,8 +325,6 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
                 {!(profileImageUrl || formik.values.profile_image) ? (
                   <div className="w-36 h-36 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center overflow-hidden border border-gray-200 dark:border-gray-700">
                     <ImageWithFallback 
-                      src="/placeholder-profile.png" 
-                      fallbackSrc="/placeholder-profile.png" 
                       alt="Profile placeholder" 
                       className="w-full h-full object-cover"
                     />
@@ -407,19 +426,32 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
                   </FormField>
                   
                   {/* Username in view mode */}
-                  <FormField label="Username" name="username" required={true}>
-                    <InputField 
-                      name="username" 
-                      icon={
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      }
-                      autoComplete="username" 
-                    />
+                  <FormField label="Username (Optional)" name="username">
+                    <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700 rounded-md">
+                      {formik.values.username ? (
+                        <p className="text-base">{formik.values.username}</p>
+                      ) : (
+                        <span className="text-gray-500 italic">No username set (using email)</span>
+                      )}
+                    </div>
                   </FormField>
                 </div>
               </div>
+
+              {/* Linked Supplier - Only shown if the role is a supplier role */}
+              {isSupplierRole && (
+                <FormField label="Linked Supplier" name="supplier_id">
+                  <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700 rounded-md">
+                    {formik.values.supplier_id ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                        {suppliers.find(s => s.supplier_id === parseInt(formik.values.supplier_id))?.company_name || 'Unknown Supplier'}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500 text-sm">Not linked to any supplier</span>
+                    )}
+                  </div>
+                </FormField>
+              )}
             </div>
           </div>
         ) : (
@@ -536,12 +568,12 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
               </h3>
               
               <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/30 p-3 rounded-md">
-                Configure login credentials for system access. Strong passwords help maintain security.
+                Configure login credentials for system access. Username is optional and will default to email login if not provided.
               </p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
-                {/* Username */}
-                <FormField label="Username" name="username" required={true}>
+                {/* Username - Now Optional */}
+                <FormField label="Username (Optional)" name="username">
                   <InputField 
                     name="username" 
                     icon={
@@ -549,10 +581,10 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                     }
-                    autoComplete="username" 
+                    autoComplete="username"
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Username should be unique and at least 4 characters.
+                    If not provided, staff will use email address for login.
                   </p>
                 </FormField>
 
@@ -591,6 +623,30 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
                 )}
               </div>
             </div>
+
+            {/* Supplier Link - Only shown if the role is a supplier role */}
+            {isSupplierRole && (
+              <FormField label="Linked Supplier" name="supplier_id">
+                <SelectField 
+                  name="supplier_id"
+                  icon={
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5m0 0v5m0-5l-6 6M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
+                    </svg>
+                  }
+                >
+                  <option value="">Not linked to any supplier</option>
+                  {suppliers.filter(s => !s.user_id || s.user_id === staffData?.user_id).map(supplier => (
+                    <option key={supplier.supplier_id} value={supplier.supplier_id}>
+                      {supplier.company_name}
+                    </option>
+                  ))}
+                </SelectField>
+                <p className="mt-1 text-xs text-gray-500">
+                  Link this staff account to a supplier for inventory management
+                </p>
+              </FormField>
+            )}
           </div>
         )}
 

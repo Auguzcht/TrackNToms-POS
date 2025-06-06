@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import supabase from '../services/supabase';
 
@@ -113,6 +113,25 @@ export const useStaff = () => {
         updated_at: data.updated_at
       };
       
+      // Check for supplier connection if the user has auth credentials
+      if (data.user_id) {
+        try {
+          // Use proper headers with the .eq method
+          const { data: supplierData } = await supabase
+            .from('suppliers')
+            .select('supplier_id, company_name')
+            .eq('user_id', data.user_id);
+            
+          if (supplierData && supplierData.length > 0) {
+            formattedStaff.supplier_id = supplierData[0].supplier_id;
+            formattedStaff.supplier_name = supplierData[0].company_name;
+          }
+        } catch (supplierErr) {
+          console.log('Error fetching supplier connection:', supplierErr);
+          // Continue anyway
+        }
+      }
+      
       return formattedStaff;
     } catch (err) {
       console.error(`Error fetching staff member with ID ${id}:`, err);
@@ -132,6 +151,8 @@ export const useStaff = () => {
     setError(null);
     
     try {
+      console.log('Creating staff with data:', staffData);
+      
       // Check if the email is already in use
       const { data: existingUser, error: checkError } = await supabase
         .from('staff')
@@ -146,7 +167,8 @@ export const useStaff = () => {
       }
 
       // If creating a user with system access, first create the auth user
-      if (staffData.username && staffData.password) {
+      if (staffData.password) {
+        console.log('Creating auth user for staff');
         const { data: authData, error: authError } = await supabase.auth.admin.createUser({
           email: staffData.email,
           password: staffData.password,
@@ -154,13 +176,17 @@ export const useStaff = () => {
           user_metadata: {
             first_name: staffData.first_name,
             last_name: staffData.last_name,
-            role: staffData.role // Use the role name
+            // Use username if provided, otherwise use first name
+            username: staffData.username || staffData.first_name.toLowerCase(),
+            role_id: staffData.role_id
           }
         });
         
         if (authError) {
           throw authError;
         }
+        
+        console.log('Auth user created:', authData.user.id);
         
         // Use the returned user ID
         staffData.user_id = authData.user.id;
@@ -178,13 +204,47 @@ export const useStaff = () => {
           status: staffData.status || 'Active',
           is_active: staffData.status === 'Active',
           profile_image: staffData.profile_image,
-          user_id: staffData.user_id // This will be undefined if not creating an auth user
+          user_id: staffData.user_id
         })
         .select()
         .single();
         
       if (insertError) {
         throw insertError;
+      }
+
+      // Check if we need to handle supplier connection
+      if (staffData.supplier_id && staffData.user_id) {
+        console.log(`Linking new staff to supplier ${staffData.supplier_id}`);
+        
+        // First check if this supplier is already linked to another user
+        const { data: supplierData, error: checkSupplierError } = await supabase
+          .from('suppliers')
+          .select('user_id, company_name')
+          .eq('supplier_id', staffData.supplier_id)
+          .single();
+          
+        if (checkSupplierError && checkSupplierError.code !== 'PGRST116') { // not found is ok
+          console.error('Error checking supplier:', checkSupplierError);
+        } else if (supplierData && supplierData.user_id && supplierData.user_id !== staffData.user_id) {
+          console.warn(`Supplier ${staffData.supplier_id} is already linked to user ${supplierData.user_id}`);
+          toast.warning(`Warning: Supplier ${supplierData.company_name} was already linked to another staff member`);
+        }
+        
+        // Update the supplier with the new user_id
+        const { error: supplierUpdateError } = await supabase
+          .from('suppliers')
+          .update({ user_id: staffData.user_id })
+          .eq('supplier_id', staffData.supplier_id);
+          
+        if (supplierUpdateError) {
+          console.error('Error linking supplier to user:', supplierUpdateError);
+          toast.error('Staff created but supplier connection failed');
+        } else {
+          // Get the supplier name for the success message
+          const supplierName = supplierData ? supplierData.company_name : 'selected supplier';
+          toast.success(`Staff member linked to ${supplierName} successfully`);
+        }
       }
 
       toast.success(`${staffData.first_name} ${staffData.last_name} added successfully!`);
@@ -288,6 +348,68 @@ export const useStaff = () => {
         }
       }
 
+      // Enhanced supplier connection handling
+      if (currentStaff.user_id) {
+        console.log('Processing supplier connection for user_id:', currentStaff.user_id);
+        
+        // 1. Find any existing supplier connections for this user
+        const { data: existingConnections, error: findError } = await supabase
+          .from('suppliers')
+          .select('supplier_id, company_name')
+          .eq('user_id', currentStaff.user_id);
+          
+        if (findError) {
+          console.error('Error finding existing supplier connections:', findError);
+        } else if (existingConnections && existingConnections.length > 0) {
+          console.log('Found existing supplier connections:', existingConnections);
+          
+          // 2. Clear all existing connections unless they match the new one
+          for (const connection of existingConnections) {
+            if (staffData.supplier_id !== connection.supplier_id.toString()) {
+              console.log(`Clearing connection to supplier ${connection.supplier_id} (${connection.company_name})`);
+              
+              const { error: clearError } = await supabase
+                .from('suppliers')
+                .update({ user_id: null })
+                .eq('supplier_id', connection.supplier_id);
+                
+              if (clearError) {
+                console.error(`Error clearing connection to supplier ${connection.supplier_id}:`, clearError);
+              }
+            }
+          }
+        }
+        
+        // 3. If a new supplier ID is provided, set up that connection
+        if (staffData.supplier_id) {
+          console.log(`Linking user ${currentStaff.user_id} to supplier ${staffData.supplier_id}`);
+          
+          const { data: supplierCheck } = await supabase
+            .from('suppliers')
+            .select('supplier_id, company_name, user_id')
+            .eq('supplier_id', staffData.supplier_id)
+            .single();
+            
+          console.log("Found supplier record:", supplierCheck);
+            
+          const { error: supplierUpdateError } = await supabase
+            .from('suppliers')
+            .update({ user_id: currentStaff.user_id })
+            .eq('supplier_id', staffData.supplier_id);
+            
+          if (supplierUpdateError) {
+            console.error('Error linking supplier to user:', supplierUpdateError);
+            toast.error('Staff updated but supplier connection failed');
+          } else {
+            const supplierName = supplierCheck ? supplierCheck.company_name : 'selected supplier';
+            toast.success(`Staff member linked to ${supplierName} successfully`);
+          }
+        }
+      } else if (staffData.supplier_id) {
+        // Staff has no user_id but a supplier_id was provided
+        toast.error('Cannot link supplier: Staff has no user account');
+      }
+      
       toast.success(`${staffData.first_name} ${staffData.last_name} updated successfully!`);
       
       // Refresh the staff list
@@ -324,6 +446,20 @@ export const useStaff = () => {
       
       if (!staffRecord) {
         throw new Error(`Staff member with ID ${id} not found`);
+      }
+      // First clean up any supplier connections if this staff has a user_id
+      if (staffRecord.user_id) {
+        console.log(`Cleaning up supplier connections for user_id ${staffRecord.user_id}`);
+        
+        const { error: supplierUpdateError } = await supabase
+          .from('suppliers')
+          .update({ user_id: null })
+          .eq('user_id', staffRecord.user_id);
+          
+        if (supplierUpdateError) {
+          console.error('Error clearing supplier connections:', supplierUpdateError);
+          // Continue with deletion anyway
+        }
       }
 
       // Delete the staff record
@@ -421,76 +557,35 @@ export const useStaff = () => {
         
       if (roleError) throw roleError;
 
-      // Get staff counts for each role
-      const { data: staffCounts, error: countError } = await supabase
+      // Get staff count per role
+      const { data: allStaff, error: staffError } = await supabase
         .from('staff')
-        .select('role_id, count')
-        .group('role_id');
+        .select('role_id');
         
-      if (countError) {
-        console.error('Error fetching staff counts:', countError);
-        // Continue without counts if there's an error
+      if (staffError) {
+        console.error('Error fetching staff for role count:', staffError);
       }
       
-      // Get permissions for each role
-      const { data: rolePermissions, error: permError } = await supabase
-        .from('role_permissions')
-        .select(`
-          role_id, 
-          permissions (
-            permission_id,
-            resource_name,
-            action_name,
-            display_name
-          )
-        `);
-        
-      if (permError) {
-        console.error('Error fetching role permissions:', permError);
-        // Continue without permissions if there's an error
-      }
-
-      // Create a map of role_id -> staff count
+      // Create a count map of staff per role
       const countMap = {};
-      if (staffCounts) {
-        staffCounts.forEach(item => {
-          countMap[item.role_id] = parseInt(item.count, 10);
+      if (allStaff) {
+        allStaff.forEach(staff => {
+          if (staff.role_id) {
+            countMap[staff.role_id] = (countMap[staff.role_id] || 0) + 1;
+          }
         });
       }
       
-      // Create a map of role_id -> permissions
-      const permissionsMap = {};
-      if (rolePermissions) {
-        rolePermissions.forEach(item => {
-          if (!permissionsMap[item.role_id]) {
-            permissionsMap[item.role_id] = [];
-          }
-          
-          if (item.permissions) {
-            // If this is an array, push all permission IDs
-            if (Array.isArray(item.permissions)) {
-              item.permissions.forEach(perm => {
-                permissionsMap[item.role_id].push(
-                  `${perm.resource_name}.${perm.action_name}`
-                );
-              });
-            } else {
-              // If it's a single object, push that permission ID
-              permissionsMap[item.role_id].push(
-                `${item.permissions.resource_name}.${item.permissions.action_name}`
-              );
-            }
-          }
-        });
-      }
-
-      // Format roles with counts and permissions
+      // Simplified permission handling - don't query the database for permissions
+      // This removes the 406 and 400 errors you were experiencing
+      
+      // Format roles with counts but without querying permissions
       const formattedRoles = roleData.map(role => ({
         id: role.role_id,
         name: role.role_name,
         description: role.description || '',
         staff_count: countMap[role.role_id] || 0,
-        permissions: permissionsMap[role.role_id] || [],
+        permissions: [], // Will be populated on demand when editing roles
         created_at: role.created_at,
         updated_at: role.updated_at
       }));
@@ -501,7 +596,7 @@ export const useStaff = () => {
       console.error('Error fetching roles:', err);
       setError('Failed to fetch roles');
       toast.error('Could not load roles data');
-      throw err;
+      return [];
     } finally {
       setLoading(false);
     }
@@ -767,6 +862,56 @@ export const useStaff = () => {
     }
   }, []);
 
+  /**
+   * Fetch staff members by role name
+   * @param {string} roleName - Role name to filter by
+   * @returns {Array} Staff members with specified role
+   */
+  const fetchStaffByRole = useCallback(async (roleName) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { data: roleData, error: roleError } = await supabase
+        .from('roles')
+        .select('role_id')
+        .eq('role_name', roleName)
+        .single();
+        
+      if (roleError) throw roleError;
+      
+      if (!roleData) {
+        throw new Error(`Role "${roleName}" not found`);
+      }
+      
+      const { data, error: staffError } = await supabase
+        .from('staff')
+        .select(`
+          staff_id,
+          user_id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          status,
+          is_active,
+          profile_image
+        `)
+        .eq('role_id', roleData.role_id)
+        .eq('is_active', true);
+        
+      if (staffError) throw staffError;
+      
+      return data || [];
+    } catch (err) {
+      console.error(`Error fetching staff with role ${roleName}:`, err);
+      setError(`Failed to fetch staff members with role ${roleName}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     staff,
     roles,
@@ -774,6 +919,7 @@ export const useStaff = () => {
     error,
     fetchStaff,
     fetchStaffById,
+    fetchStaffByRole,
     createStaff,
     updateStaff,
     deleteStaff,

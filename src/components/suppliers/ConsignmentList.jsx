@@ -6,6 +6,39 @@ import Modal from '../common/Modal';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import ConsignmentDetails from './ConsignmentDetails';
+import placeholderImage from '../../assets/placeholder-image.png';
+
+// 1. First, let's improve the ImageWithFallback component with better error handling
+const ImageWithFallback = ({ src, alt, className }) => {
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Add debugging to track what's happening
+  useEffect(() => {
+    console.log('Image source:', src);
+  }, [src]);
+  
+  return (
+    <div className={`${className} overflow-hidden flex items-center justify-center bg-[#FFF6F2]`}>
+      <img 
+        src={hasError || !src ? placeholderImage : src}
+        alt={alt}
+        onLoad={() => setIsLoading(false)}
+        onError={() => {
+          console.log('Image load error for:', src);
+          setHasError(true);
+          setIsLoading(false);
+        }}
+        className={`h-full w-full object-cover ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+      />
+      {(isLoading || hasError || !src) && (
+        <span className="absolute text-[10px] font-bold text-[#571C1F]">
+          {alt?.substring(0, 1).toUpperCase() || '?'}
+        </span>
+      )}
+    </div>
+  );
+};
 
 // Update the ConsignmentFilters component to match the SupplierList styling
 const ConsignmentFilters = ({ filters, setFilters, suppliers }) => {
@@ -186,6 +219,40 @@ const ConsignmentList = ({
     setFilteredConsignments(result);
   }, [consignments, filters, sortConfig]);
 
+  // Log the structure of consignments and items on consignment change
+  useEffect(() => {
+    if (consignments && consignments.length > 0) {
+      console.log('First consignment structure:', consignments[0]);
+      if (consignments[0].items && consignments[0].items.length > 0) {
+        console.log('First item in first consignment:', consignments[0].items[0]);
+      }
+    }
+  }, [consignments]);
+
+  // Add this near your other useEffect calls
+  useEffect(() => {
+    if (consignments && consignments.length > 0) {
+      console.log('First consignment:', consignments[0]);
+      
+      if (consignments[0].items && consignments[0].items.length > 0) {
+        // Log the whole first item to see exact structure
+        console.log('First item in first consignment (full object):', consignments[0].items[0]);
+        
+        // Also check if image property exists and what it contains
+        const firstItem = consignments[0].items[0];
+        console.log('Image paths to check:',
+          {
+            'item.image': firstItem.image,
+            'item.item_image': firstItem.item_image,
+            'item.items?.image': firstItem.items?.image,
+            'item.item?.image': firstItem.item?.image,
+            'item.items_id?.image': firstItem.items_id?.image
+          }
+        );
+      }
+    }
+  }, [consignments]);
+
   // Handle sort click
   const handleSort = (key) => {
     let direction = 'asc';
@@ -235,7 +302,8 @@ const ConsignmentList = ({
     try {
       // Use the onDelete prop if provided
       if (onDelete) {
-        await onDelete(consignmentToDelete.id);
+        // Use consignment_id instead of id
+        await onDelete(consignmentToDelete.consignment_id);
       }
       
       setConfirmDelete(false);
@@ -265,8 +333,13 @@ const ConsignmentList = ({
 
   // Calculate total items in a consignment
   const calculateTotalItems = (consignment) => {
-    if (!consignment?.items) return 0;
-    return consignment.items.reduce((total, item) => total + Number(item.quantity || 0), 0);
+    if (!consignment?.items || !Array.isArray(consignment.items)) return 0;
+    
+    // Try to sum up quantities or count the number of items if quantities aren't available
+    return consignment.items.reduce((total, item) => {
+      const itemQty = parseFloat(item.quantity) || 0;
+      return total + (itemQty > 0 ? itemQty : 1);
+    }, 0);
   };
 
   // Calculate total value of a consignment
@@ -310,6 +383,42 @@ const ConsignmentList = ({
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
+  };
+
+  // Add these helper functions at the component level (alongside your other helper functions)
+  const getItemImage = (item) => {
+    if (!item) return null;
+    
+    // Debug the item structure
+    console.log('Getting image from item:', item);
+    
+    // Try all possible paths where the image might be stored
+    if (item.image) return item.image;
+    if (item.item_image) return item.item_image;
+    if (item.items?.image) return item.items.image;
+    
+    // Some APIs nest the data one level further, try those paths
+    if (item.item?.image) return item.item.image;
+    
+    // If the image is in a joint table, the path might be different
+    // For example, in a many-to-many relationship
+    if (item.items_id && typeof item.items_id === 'object' && item.items_id.image) {
+      return item.items_id.image;
+    }
+    
+    return null;
+  };
+
+  const getItemName = (item) => {
+    if (!item) return 'Unknown Item';
+    
+    // Direct name property
+    if (item.item_name) return item.item_name;
+    
+    // items nested object with name
+    if (item.items && item.items.item_name) return item.items.item_name;
+    
+    return 'Unknown Item';
   };
 
   if (loading && (!consignments || consignments.length === 0)) {
@@ -424,13 +533,6 @@ const ConsignmentList = ({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 rounded-full border border-[#571C1F]/10 overflow-hidden bg-[#FFF6F2] mr-3">
-                            <div className="h-10 w-10 flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#571C1F]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                            </div>
-                          </div>
                           <div>
                             <div className="font-medium text-[#571C1F]">
                               {consignment.invoice_number || 'No Invoice'}
@@ -447,7 +549,44 @@ const ConsignmentList = ({
                         {consignment.supplier_name || 'Unknown Supplier'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#571C1F] dark:text-gray-600 font-medium">
-                        {calculateTotalItems(consignment)} items
+                        <div className="flex items-center">
+                          <span className="mr-2">{calculateTotalItems(consignment)} items</span>
+                          {consignment.items && consignment.items.length > 0 && (
+                            <div className="flex -space-x-2">
+                              {consignment.items.slice(0, 3).map((item, idx) => {
+                                const imageSrc = getItemImage(item);
+                                const itemName = getItemName(item);
+                                
+                                return (
+                                  <div 
+                                    key={`${item.item_id || idx}-${idx}`} 
+                                    className="h-7 w-7 rounded-full border-2 border-white overflow-hidden bg-[#FFF6F2] relative"
+                                    title={itemName}
+                                  >
+                                    {imageSrc ? (
+                                      <ImageWithFallback
+                                        src={imageSrc}
+                                        alt={itemName}
+                                        className="h-7 w-7"
+                                      />
+                                    ) : (
+                                      <div className="h-7 w-7 flex items-center justify-center">
+                                        <span className="text-[10px] font-bold text-[#571C1F]">
+                                          {itemName.substring(0, 1).toUpperCase()}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {consignment.items.length > 3 && (
+                                <div className="h-7 w-7 rounded-full bg-[#571C1F]/10 border-2 border-white flex items-center justify-center">
+                                  <span className="text-[10px] font-bold text-[#571C1F]">+{consignment.items.length - 3}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#571C1F] font-medium">
                         {formatCurrency(consignment.total)}

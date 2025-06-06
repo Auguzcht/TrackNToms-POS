@@ -71,12 +71,12 @@ const SupplierForm = ({ supplierId = null, onSave = () => {}, onCancel = () => {
           }
           // Transform database data to form format
           const transformedData = {
-            supplier_name: data.supplier_name || '',
-            supplier_contact: data.supplier_contact || '',
-            supplier_email: data.supplier_email || '',
-            // Parse any additional fields from metadata or use defaults
+            supplier_name: data.company_name || '',
+            supplier_contact: data.contact_phone || '',
+            supplier_email: data.contact_email || '',
+            // Parse any additional fields
             ...parseAdditionalFields(data),
-            isActive: data.status === 'Active'
+            isActive: data.is_active, // Use is_active instead of status
           };
           setSupplierData(transformedData);
           setLogoUrl(data.logo || '');
@@ -92,40 +92,20 @@ const SupplierForm = ({ supplierId = null, onSave = () => {}, onCancel = () => {
   // FIXED: Removed isNewSupplier from dependencies to avoid circular updates
   }, [getSupplier, supplierId]);
 
-  // Helper function to parse additional fields from metadata or other storage
+  // Helper function to parse fields from supplier data
   const parseAdditionalFields = (data) => {
-    try {
-      // If your application stores additional fields as JSON in a metadata column
-      // or in related tables, parse them here
-      const metadata = data.metadata ? JSON.parse(data.metadata) : {};
-      
-      return {
-        contactPerson: metadata.contactPerson || '',
-        phone: metadata.phone || '',
-        address: metadata.address || '',
-        city: metadata.city || '',
-        state: metadata.state || '',
-        postalCode: metadata.postalCode || '',
-        country: metadata.country || '',
-        website: metadata.website || '',
-        notes: metadata.notes || '',
-        paymentTerms: metadata.paymentTerms || '',
-      };
-    } catch (error) {
-      console.error('Error parsing supplier metadata:', error);
-      return {
-        contactPerson: '',
-        phone: '',
-        address: '',
-        city: '',
-        state: '',
-        postalCode: '',
-        country: '',
-        website: '',
-        notes: '',
-        paymentTerms: '',
-      };
-    }
+    return {
+      contactPerson: data.contact_person || '',
+      phone: data.supplier_contact || '', // Map to supplier_contact
+      address: data.address || '',
+      city: data.city || '',
+      state: data.state || '',
+      postalCode: data.postal_code || '', // Map to postal_code
+      country: data.country || '',
+      website: data.website || '',
+      notes: data.notes || '',
+      paymentTerms: data.payment_terms || '', // Map to payment_terms
+    };
   };
 
   // Initialize formik with enableReinitialize to update when supplierData changes
@@ -151,26 +131,23 @@ const SupplierForm = ({ supplierId = null, onSave = () => {}, onCancel = () => {
     enableReinitialize: true, // CRITICAL: This ensures form updates when supplierData changes
     onSubmit: async (values) => {
       try {
-        // Transform form data to database format
+        // Transform form data to database format according to your schema
         const dbData = {
-          supplier_name: values.supplier_name,
-          supplier_contact: values.supplier_contact || values.phone || '',  // Use contact field or phone as fallback
-          supplier_email: values.supplier_email,
-          status: values.isActive ? 'Active' : 'Inactive',
-          // Store additional fields as needed by your application
-          metadata: JSON.stringify({
-            contactPerson: values.contactPerson,
-            phone: values.phone,
-            address: values.address,
-            city: values.city,
-            state: values.state,
-            postalCode: values.postalCode,
-            country: values.country,
-            website: values.website,
-            notes: values.notes,
-            paymentTerms: values.paymentTerms,
-          }),
-          logo: logoUrl || values.logo
+          // Core fields in your suppliers table
+          company_name: values.supplier_name,           // Map to company_name (your actual column name)
+          contact_person: values.contactPerson,         // Direct mapping
+          contact_email: values.supplier_email,         // Map to contact_email
+          contact_phone: values.supplier_contact || values.phone || '', // Map to contact_phone
+          address: values.address,                      // Direct mapping
+          city: values.city,                           // Direct mapping
+          state: values.state,                         // Direct mapping
+          postal_code: values.postalCode,              // Map to postal_code
+          country: values.country,                     // Direct mapping
+          website: values.website,                     // Direct mapping
+          payment_terms: values.paymentTerms,          // Map to payment_terms
+          notes: values.notes,                         // Direct mapping
+          is_active: values.isActive,                  // Map to is_active (not status)
+          logo: logoUrl || values.logo                 // Direct mapping
         };
         
         let result;
