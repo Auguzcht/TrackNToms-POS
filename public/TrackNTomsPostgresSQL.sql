@@ -1140,3 +1140,190 @@ COMMENT ON DATABASE postgres IS 'TrackNToms POS System - Version 2.0.1';
 
 -- Record the version
 SELECT record_version_update('2.0.1', 'Fixed schema with proper table creation order and error handling in trigger functions');
+
+-- ML Enhancement Tables for TrackNToms POS System
+-- Version 3.0.0
+
+-- Filipino holidays for Prophet algorithm
+CREATE TABLE IF NOT EXISTS philippine_holidays (
+  holiday_id SERIAL PRIMARY KEY,
+  holiday_name VARCHAR(100) NOT NULL,
+  holiday_date DATE NOT NULL,
+  holiday_type VARCHAR(50) NOT NULL, -- 'regular', 'special', 'local'
+  is_recurring BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Weather data for correlation analysis
+CREATE TABLE IF NOT EXISTS weather_data (
+  weather_id SERIAL PRIMARY KEY,
+  date DATE NOT NULL,
+  location VARCHAR(50) DEFAULT 'Davao City',
+  condition VARCHAR(50) NOT NULL,
+  temperature_high DECIMAL(5,2),
+  temperature_low DECIMAL(5,2),
+  rainfall DECIMAL(5,2),
+  humidity INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ML model tracking
+CREATE TABLE IF NOT EXISTS ml_models (
+  model_id SERIAL PRIMARY KEY,
+  model_name VARCHAR(100) NOT NULL,
+  model_type VARCHAR(50) NOT NULL,
+  last_trained TIMESTAMP WITH TIME ZONE NOT NULL,
+  accuracy DECIMAL(5,2),
+  parameters JSONB,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ML predictions log
+CREATE TABLE IF NOT EXISTS ml_predictions (
+  prediction_id SERIAL PRIMARY KEY,
+  model_id INTEGER REFERENCES ml_models(model_id),
+  prediction_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  prediction_type VARCHAR(50) NOT NULL, -- 'sales', 'inventory', 'anomaly'
+  prediction_data JSONB,
+  actual_data JSONB,
+  accuracy DECIMAL(5,2),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ML anomaly detection log
+CREATE TABLE IF NOT EXISTS ml_anomalies (
+  anomaly_id SERIAL PRIMARY KEY,
+  detection_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  anomaly_type VARCHAR(50) NOT NULL, -- 'inventory', 'sales', 'financial'
+  severity VARCHAR(20) NOT NULL, -- 'low', 'medium', 'high'
+  resource_id INTEGER, -- ID of related resource (item_id, ingredient_id, etc.)
+  resource_type VARCHAR(50), -- 'item', 'ingredient', 'sale', etc.
+  description TEXT,
+  is_reviewed BOOLEAN DEFAULT FALSE,
+  reviewed_by UUID, -- References auth.users
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Item clustering and segmentation
+CREATE TABLE IF NOT EXISTS ml_item_clusters (
+  cluster_id SERIAL PRIMARY KEY,
+  cluster_name VARCHAR(100) NOT NULL,
+  description TEXT,
+  parameters JSONB,
+  last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Items to cluster mapping
+CREATE TABLE IF NOT EXISTS ml_item_cluster_mapping (
+  item_id INTEGER REFERENCES items(item_id) ON DELETE CASCADE,
+  cluster_id INTEGER REFERENCES ml_item_clusters(cluster_id) ON DELETE CASCADE,
+  confidence DECIMAL(5,2),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  PRIMARY KEY (item_id, cluster_id)
+);
+
+-- Product associations for market basket analysis
+CREATE TABLE IF NOT EXISTS ml_product_associations (
+  association_id SERIAL PRIMARY KEY,
+  item_id INTEGER REFERENCES items(item_id),
+  associated_item_id INTEGER REFERENCES items(item_id),
+  support DECIMAL(8,6) NOT NULL, -- percentage of transactions with both items
+  confidence DECIMAL(8,6) NOT NULL, -- likelihood of associated_item given item
+  lift DECIMAL(8,6) NOT NULL, -- ratio of observed support to expected support
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Time series forecasts for inventory and sales
+CREATE TABLE IF NOT EXISTS ml_forecasts (
+  forecast_id SERIAL PRIMARY KEY,
+  model_id INTEGER REFERENCES ml_models(model_id),
+  forecast_type VARCHAR(50) NOT NULL, -- 'sales', 'inventory', 'demand'
+  resource_id INTEGER, -- item_id, ingredient_id, or NULL for overall forecasts
+  resource_type VARCHAR(50), -- 'item', 'ingredient', 'overall'
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  forecast_data JSONB NOT NULL, -- array of {date, value, lower_bound, upper_bound}
+  accuracy_metrics JSONB, -- {mape, rmse, mae, etc.}
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ML-based inventory recommendations
+CREATE TABLE IF NOT EXISTS ml_inventory_recommendations (
+  recommendation_id SERIAL PRIMARY KEY,
+  ingredient_id INTEGER REFERENCES ingredients(ingredient_id),
+  recommendation_type VARCHAR(50) NOT NULL, -- 'restock', 'reduce', 'adjust_min'
+  current_value DECIMAL(7,2),
+  recommended_value DECIMAL(7,2),
+  confidence DECIMAL(5,2),
+  reason TEXT,
+  is_applied BOOLEAN DEFAULT FALSE,
+  applied_by UUID, -- References auth.users
+  applied_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Helper function to prepare data for ML models
+CREATE OR REPLACE FUNCTION prepare_ml_sales_data(
+  p_start_date DATE,
+  p_end_date DATE,
+  p_interval TEXT DEFAULT 'day'
+) RETURNS TABLE (
+  date_bucket TIMESTAMP,
+  total_sales DECIMAL(12,2),
+  transaction_count INTEGER,
+  avg_basket_size DECIMAL(12,2),
+  dominant_category TEXT,
+  weather_condition TEXT,
+  is_holiday BOOLEAN
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    date_trunc(p_interval, s.sale_date) AS date_bucket,
+    SUM(s.total_amount) AS total_sales,
+    COUNT(*) AS transaction_count,
+    AVG(
+      (SELECT COUNT(*) 
+       FROM sales_detail sd 
+       WHERE sd.sale_id = s.sale_id)
+    ) AS avg_basket_size,
+    (SELECT category
+     FROM (
+       SELECT i.category, SUM(sd.quantity) as total_qty
+       FROM sales_detail sd
+       JOIN items i ON sd.item_id = i.item_id
+       WHERE sd.sale_id IN (
+         SELECT sale_id FROM sales_header 
+         WHERE date_trunc(p_interval, sale_date) = date_trunc(p_interval, s.sale_date)
+       )
+       GROUP BY i.category
+       ORDER BY total_qty DESC
+       LIMIT 1
+     ) AS category_counts
+    ) AS dominant_category,
+    (SELECT condition FROM weather_data wd
+     WHERE wd.date = DATE(s.sale_date)
+     LIMIT 1) AS weather_condition,
+    (EXISTS (
+      SELECT 1 FROM philippine_holidays
+      WHERE holiday_date = DATE(s.sale_date)
+    )) AS is_holiday
+  FROM sales_header s
+  WHERE s.sale_date BETWEEN p_start_date AND p_end_date
+    AND s.status = 'Completed'
+  GROUP BY date_trunc(p_interval, s.sale_date)
+  ORDER BY date_bucket;
+END;
+$$ LANGUAGE plpgsql;

@@ -156,11 +156,12 @@ export const PAYMENT_METHODS = [
   { value: 'bank_transfer', label: 'Bank Transfer' }
 ];
 
-// Common units for inventory
+// Common units for inventory - updated to match schema
 export const UNITS = [
-  { value: 'g', label: 'Grams (g)' },
-  { value: 'kg', label: 'Kilograms (kg)' },
+  { value: 'shots', label: 'Shots' },
   { value: 'ml', label: 'Milliliters (ml)' },
+  { value: 'grams', label: 'Grams (g)' },
+  { value: 'kg', label: 'Kilograms (kg)' },
   { value: 'l', label: 'Liters (l)' },
   { value: 'pcs', label: 'Pieces (pcs)' },
   { value: 'box', label: 'Box' },
@@ -170,36 +171,40 @@ export const UNITS = [
   { value: 'tsp', label: 'Teaspoon' }
 ];
 
-// Product categories specific to coffee shop/restaurant
+// Product categories specific to Tom N Toms coffee shop - updated to match schema
 export const PRODUCT_CATEGORIES = [
-  { value: 'coffee', label: 'Coffee' },
-  { value: 'tea', label: 'Tea' },
-  { value: 'frappe', label: 'Frappe' },
-  { value: 'smoothie', label: 'Smoothie' },
-  { value: 'pastry', label: 'Pastry' },
-  { value: 'sandwich', label: 'Sandwich' },
-  { value: 'cake', label: 'Cake' },
-  { value: 'breakfast', label: 'Breakfast' },
-  { value: 'lunch', label: 'Lunch' },
-  { value: 'snack', label: 'Snack' },
-  { value: 'add_on', label: 'Add-on' }
+  { value: 'something_new_drinks', label: 'SOMETHING NEW: DRINKS' },
+  { value: 'espresso_beverage', label: 'ESPRESSO BEVERAGE' },
+  { value: 'tea', label: 'TEA' },
+  { value: 'beverage', label: 'BEVERAGE' },
+  { value: 'iced_beverage', label: 'ICED BEVERAGE' },
+  { value: 'coffee_tomnccino', label: 'COFFEE TOMNCCINO' },
+  { value: 'non_tomnccino', label: 'NON TOMNCCINO' },
+  { value: 'smoothie', label: 'SMOOTHIE' },
+  { value: 'something_new_food', label: 'SOMETHING NEW: FOOD' },
+  { value: 'pretzel', label: 'PRETZEL' },
+  { value: 'breads_pastry', label: 'BREADS & PASTRY' },
+  { value: 'brunch_plates', label: 'BRUNCH PLATES' },
+  { value: 'pasta', label: 'PASTA' },
+  { value: 'sandwiches', label: 'SANDWICHES' }
 ];
 
-// Ingredient categories
+// Ingredient categories - updated to match schema
 export const INGREDIENT_CATEGORIES = [
-  { value: 'coffee_beans', label: 'Coffee Beans' },
-  { value: 'tea_leaves', label: 'Tea Leaves' },
-  { value: 'milk', label: 'Milk & Dairy' },
-  { value: 'syrup', label: 'Syrups' },
-  { value: 'powder', label: 'Powders' },
-  { value: 'fruit', label: 'Fruits' },
-  { value: 'vegetable', label: 'Vegetables' },
-  { value: 'bread', label: 'Bread & Pastry' },
-  { value: 'meat', label: 'Meat' },
-  { value: 'condiment', label: 'Condiments' },
-  { value: 'topping', label: 'Toppings' },
-  { value: 'packaging', label: 'Packaging' },
-  { value: 'other', label: 'Other' }
+  { value: 'Coffee', label: 'Coffee' },
+  { value: 'Dairy', label: 'Dairy' },
+  { value: 'Basic', label: 'Basic Ingredients' },
+  { value: 'Syrups', label: 'Syrups' },
+  { value: 'Specialty', label: 'Specialty Powders' },
+  { value: 'Fruits', label: 'Fruits' },
+  { value: 'Tea', label: 'Tea' },
+  { value: 'Spices', label: 'Spices' },
+  { value: 'Vegetables', label: 'Vegetables' },
+  { value: 'Bread', label: 'Bread & Pastry' },
+  { value: 'Meat', label: 'Meat' },
+  { value: 'Condiments', label: 'Condiments' },
+  { value: 'Toppings', label: 'Toppings' },
+  { value: 'Packaging', label: 'Packaging' }
 ];
 
 // Date range presets for reports

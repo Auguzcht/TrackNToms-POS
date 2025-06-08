@@ -246,16 +246,16 @@ const InventoryPage = () => {
   }, [deleteItem, hasPermission]);
 
   // Update handleIngredientSubmit to refresh items too if needed
-  const handleIngredientSubmit = useCallback(() => {
+  const handleIngredientSubmit = useCallback(async (result) => {
     setShowIngredientModal(false);
     setEditingIngredient(null);
     
     // Refresh ingredients list
-    fetchIngredients();
+    await fetchIngredients();
     
     // Also refresh pullouts since they display ingredient names
     if (activeTab === 'pullouts') {
-      fetchPullouts();
+      await fetchPullouts();
     }
     
     setRefreshTrigger(prev => prev + 1);
@@ -263,7 +263,7 @@ const InventoryPage = () => {
   }, [editingIngredient, fetchIngredients, fetchPullouts, activeTab]);
 
   // Handle the menu item form submission
-  const handleItemSubmit = useCallback(async () => {
+  const handleItemSubmit = useCallback(async (result) => {
     setShowItemModal(false);
     setEditingItem(null);
     

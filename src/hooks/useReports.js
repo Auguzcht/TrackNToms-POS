@@ -74,6 +74,21 @@ const useReports = () => {
         interval: groupBy 
       });
       
+      // Fetch all items to get their externally sourced status
+      const { data: allItems } = await supabase
+        .from('items')
+        .select('item_id, is_externally_sourced');
+      
+      // Create a lookup map for item properties
+      const itemPropertiesMap = {};
+      if (allItems && allItems.length > 0) {
+        allItems.forEach(item => {
+          itemPropertiesMap[item.item_id] = {
+            is_externally_sourced: item.is_externally_sourced === true
+          };
+        });
+      }
+      
       // Calculate summary metrics
       const totalSales = salesData.reduce((sum, sale) => 
         sum + parseFloat(sale.total_amount), 0);
@@ -87,29 +102,51 @@ const useReports = () => {
       // Get sales by category and payment method
       const categorySales = getSalesByCategory(salesData);
       
+      // Track in-house vs external product sales
+      let inHouseSales = 0;
+      let externalSales = 0;
+      
       const paymentMethodBreakdown = salesData.reduce((acc, sale) => {
         const method = sale.payment_method || 'Unknown';
         acc[method] = (acc[method] || 0) + parseFloat(sale.total_amount);
         return acc;
       }, {});
       
-      // Get top selling items
+      // Get top selling items and track external vs in-house
       const itemSales = {};
       salesData.forEach(sale => {
         sale.items.forEach(item => {
+          // Get the external status from our lookup map or from the item itself
+          const isExternallySourced = 
+            itemPropertiesMap[item.item_id]?.is_externally_sourced || 
+            item.is_externally_sourced === true;
+          
+          const subtotal = parseFloat(item.subtotal || 0);
+          
+          // Update in-house vs external totals
+          if (isExternallySourced) {
+            externalSales += subtotal;
+          } else {
+            inHouseSales += subtotal;
+          }
+          
           if (!itemSales[item.item_id]) {
             itemSales[item.item_id] = {
-              name: item.name,
-              category: item.category,
+              id: item.item_id,
+              name: item.name || `Item ${item.item_id}`,
+              category: item.category || 'Uncategorized',
               quantity: 0,
-              revenue: 0
+              revenue: 0,
+              is_externally_sourced: isExternallySourced
             };
           }
+          
           itemSales[item.item_id].quantity += item.quantity;
-          itemSales[item.item_id].revenue += parseFloat(item.subtotal);
+          itemSales[item.item_id].revenue += subtotal;
         });
       });
       
+      // Sort by revenue to get top items
       const topItems = Object.values(itemSales)
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 10);
@@ -121,7 +158,7 @@ const useReports = () => {
         return acc;
       }, {});
       
-      // Prepare the final report data
+      // Prepare the final report data with the correct product type breakdown
       const report = {
         type: 'sales',
         title: 'Sales Report',
@@ -134,7 +171,11 @@ const useReports = () => {
           totalSales,
           totalTransactions,
           averageOrderValue,
-          voidedSales: salesData.filter(sale => sale.is_voided).length
+          voidedSales: salesData.filter(sale => sale.is_voided).length,
+          productTypeSales: {
+            inHouse: inHouseSales,
+            external: externalSales
+          }
         },
         data: salesData,
         analytics: {
@@ -1017,21 +1058,16 @@ const useReports = () => {
     // Export functionality
     exportReport,
     
-    // Utility functions
+    // Other helper functions
     setReportDateRange,
     getDateRangeOptions,
     getReportTemplates,
     clearReport,
-
-    // Scheduling functionality
-    scheduleReport,
-
-    // Period comparison functionality
     calculatePeriodComparison,
-
-    // Filtering functionality
-    filterReportData
+    filterReportData,
+    scheduleReport
   };
 };
 
+export { useReports };
 export default useReports;

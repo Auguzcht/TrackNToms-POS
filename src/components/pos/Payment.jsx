@@ -21,7 +21,7 @@ const PrintableReceipt = React.forwardRef(({ order, paymentMethod, cashAmount, c
   return (
     <div ref={ref} className="print-receipt p-5">
       <div className="text-center mb-4">
-        <h2 className="font-bold text-[#571C1F] text-xl">Track N' Toms</h2>
+        <h2 className="font-bold text-[#571C1F] text-xl">TomNToms Coffee</h2>
         <p className="text-[#571C1F]/70 text-sm">123 Coffee Street, Cityville</p>
       </div>
       
@@ -128,6 +128,32 @@ const Payment = ({
       return;
     }
     
+    // Format date
+    const date = new Date();
+    const formattedDate = date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    const formattedTime = date.toLocaleTimeString('en-US', { 
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    // Format receipt number
+    const formattedSaleId = saleId.toString().startsWith('TNT-') ? saleId : `TNT-${saleId.toString().padStart(6, '0')}`;
+    
+    // Format the cashier name based on available user properties
+    const cashierName = user?.first_name 
+      ? `${user.first_name} ${user.last_name || ''}` 
+      : user?.user_metadata?.first_name 
+      ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}` 
+      : user?.email
+      ? user.email.split('@')[0]
+      : 'Cashier';
+    
+    const storeLocation = "JP Laurel Avenue, Bajada, Davao City";
+    
     // Create the CSS styles for the print window
     const styles = `
       <style>
@@ -202,18 +228,6 @@ const Payment = ({
       </style>
     `;
     
-    // Format date
-    const date = new Date();
-    const formattedDate = date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-    const formattedTime = date.toLocaleTimeString('en-US', { 
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    
     // Generate receipt items HTML
     const itemsHTML = order.items.map(item => `
       <div class="receipt-row">
@@ -242,23 +256,23 @@ const Payment = ({
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Receipt #${saleId}</title>
+        <title>Receipt #${formattedSaleId}</title>
         ${styles}
       </head>
       <body>
         <div class="receipt-header">
-          <h2>Track N' Toms</h2>
-          <p>123 Coffee Street, Cityville</p>
+          <h2>TomNToms Coffee</h2>
+          <p>${storeLocation}</p>
         </div>
         
         <div class="receipt-info">
           <div class="receipt-row">
             <span class="receipt-label">Receipt #:</span>
-            <span>${saleId}</span>
+            <span>${formattedSaleId}</span>
           </div>
           <div class="receipt-row">
             <span class="receipt-label">Cashier:</span>
-            <span>${user?.name || 'Cashier'}</span>
+            <span>${cashierName}</span>
           </div>
           <div class="receipt-row">
             <span class="receipt-label">Date & Time:</span>
@@ -383,28 +397,24 @@ const Payment = ({
     setError('');
     
     try {
-      // Simulate a successful payment with a timeout
-      setTimeout(() => {
-        // Generate a simple receipt number
-        const receiptNumber = 'TNT-' + Math.floor(100000 + Math.random() * 900000);
-        
+      // Call the parent component's completion handler with payment details
+      const result = await onComplete({
+        method: paymentMethod,
+        cashAmount: parseFloat(cashAmount) || 0,
+        change: change
+      });
+      
+      if (result && result.success) {
+        // Show receipt after successful payment
+        setSaleId(result.saleId || 'TNT-' + Math.floor(100000 + Math.random() * 900000));
         setPaymentComplete(true);
-        setSaleId(receiptNumber);
-        
-        // Call the parent component's completion handler with success
-        onComplete({
-          success: true,
-          saleId: receiptNumber,
-          paymentMethod,
-          cashAmount: parseFloat(cashAmount),
-          change
-        });
-        
-        setProcessingPayment(false);
-      }, 1500); // Simulate 1.5 second processing time
+      } else {
+        setError(result?.error || 'Payment failed');
+      }
     } catch (err) {
       console.error('Payment error:', err);
       setError('An unexpected error occurred. Please try again.');
+    } finally {
       setProcessingPayment(false);
     }
   };
@@ -463,7 +473,23 @@ const Payment = ({
         }}
       >
         <AnimatePresence mode="wait">
-          {paymentComplete ? (
+          {processingPayment ? (
+            <motion.div
+              key="processing"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center h-full pt-12"
+            >
+              <div className="w-20 h-20 relative">
+                <div className="absolute inset-0 border-4 border-[#FFF6F2] border-t-[#571C1F] rounded-full animate-spin"></div>
+              </div>
+              <p className="mt-6 text-[#571C1F] font-medium text-lg">Processing payment...</p>
+              <p className="mt-3 text-sm text-[#571C1F]/70 text-center max-w-xs">
+                Please wait while we complete your transaction and update inventory records.
+              </p>
+            </motion.div>
+          ) : paymentComplete ? (
             <ReceiptView 
               order={order} 
               paymentMethod={paymentMethod} 
@@ -775,6 +801,20 @@ const ReceiptView = ({ order, paymentMethod, cashAmount, change, saleId, user, o
     minute: '2-digit'
   });
   
+  // Format receipt number with TNT prefix if it doesn't already have one
+  const formattedSaleId = saleId.toString().startsWith('TNT-') ? saleId : `TNT-${saleId.toString().padStart(6, '0')}`;
+  
+  // Format the cashier name based on available user properties
+  const cashierName = user?.first_name 
+    ? `${user.first_name} ${user.last_name || ''}` 
+    : user?.user_metadata?.first_name 
+    ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}` 
+    : user?.email
+    ? user.email.split('@')[0]
+    : 'Cashier';
+  
+  const storeLocation = "JP Laurel Avenue, Bajada, Davao City";
+  
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -817,18 +857,18 @@ const ReceiptView = ({ order, paymentMethod, cashAmount, change, saleId, user, o
         {/* Receipt content */}
         <div className="border-t border-dashed border-[#571C1F]/10 pt-4 mb-4">
           <div className="text-center mb-4">
-            <h4 className="font-bold text-[#571C1F]">Track N' Toms</h4>
-            <p className="text-[#571C1F]/70 text-xs">123 Coffee Street, Cityville</p>
+            <h4 className="font-bold text-[#571C1F]">TomNToms Coffee</h4>
+            <p className="text-[#571C1F]/70 text-xs">{storeLocation}</p>
           </div>
           
           <div className="flex justify-between text-sm mb-1">
             <span className="text-[#571C1F]/70">Receipt #:</span>
-            <span className="font-medium text-[#571C1F]">{saleId}</span>
+            <span className="font-medium text-[#571C1F]">{formattedSaleId}</span>
           </div>
           
           <div className="flex justify-between text-sm">
             <span className="text-[#571C1F]/70">Cashier:</span>
-            <span className="text-[#571C1F]">{user?.name || "Cashier"}</span>
+            <span className="text-[#571C1F]">{cashierName}</span>
           </div>
 
           <div className="flex justify-between text-sm mb-2">

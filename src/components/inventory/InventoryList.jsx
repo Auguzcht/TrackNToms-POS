@@ -12,7 +12,8 @@ const InventoryList = ({
   loading = false,
   onView,
   onEdit,
-  onDelete
+  onDelete,
+  onRefresh // Add this prop
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
@@ -73,6 +74,12 @@ const InventoryList = ({
   const handleSaveFromModal = (updatedIngredient) => {
     setShowDetailsModal(false);
     setSelectedIngredient(null);
+    
+    // Call any parent refresh logic
+    if (onEdit && updatedIngredient) {
+      // Pass the updated ingredient back to the parent component
+      onEdit(updatedIngredient);
+    }
   };
 
   // Helper function to safely format currency - improved with better error handling
@@ -198,6 +205,15 @@ const InventoryList = ({
   useEffect(() => {
     setImageLoadErrors({});
   }, [data]);
+
+  // Add a useEffect to listen for refresh signals
+  useEffect(() => {
+    // Clear any selection or modals when refreshed externally
+    if (showDetailsModal) {
+      setShowDetailsModal(false);
+      setSelectedIngredient(null);
+    }
+  }, [data]); // This will trigger when the data prop changes from the parent
 
   // Render table headers based on type
   const renderTableHeaders = () => {
@@ -403,6 +419,7 @@ const InventoryList = ({
             </td>
             <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-600 font-medium">
               {ingredient.unit || '-'}
+
             </td>
             <td className="px-6 py-4 text-sm">
               <span className={`${

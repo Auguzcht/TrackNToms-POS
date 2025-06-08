@@ -8,6 +8,8 @@ import { useSales } from '../../hooks/useSales';
 import { useAuth } from '../../hooks/useAuth';
 import { useInventory } from '../../hooks/useInventory';
 import { toast } from 'react-hot-toast';
+import Button from '../common/Button';
+import Card from '../common/Card';
 
 // Update the component signature to accept props
 const SalesTerminal = ({ initialProducts = [], initialCategories = [] }) => {
@@ -297,9 +299,7 @@ const SalesTerminal = ({ initialProducts = [], initialCategories = [] }) => {
           quantity: item.quantity
         })));
         
-        // Clear the order
-        clearOrder();
-        setPaymentStep(false);
+        // We don't need to set receipt states anymore, just return the result
         toast.success(`Sale #${result.sale_id} completed successfully`);
 
         // Re-check inventory for products
@@ -307,7 +307,8 @@ const SalesTerminal = ({ initialProducts = [], initialCategories = [] }) => {
 
         return {
           success: true,
-          saleId: result.sale_id
+          saleId: result.sale_id,
+          cashierName: user?.first_name || user?.user_metadata?.first_name || 'Cashier'
         };
       }
       

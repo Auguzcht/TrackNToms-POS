@@ -11,12 +11,20 @@ import FinancialReport from '../components/reports/FinancialReport';
 
 // Import hooks
 import { useAuth } from '../hooks/useAuth';
+import { useReports } from '../hooks/useReports';
+import { useSales } from '../hooks/useSales';
+import { useInventory } from '../hooks/useInventory';
 
 const ReportsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [iconHovered, setIconHovered] = useState(false);
+  
+  // Import the hooks we need for export functionality
+  const { exportReport } = useReports();
+  const { fetchSales } = useSales();
+  const { fetchInventory } = useInventory();
   
   // Get tab from URL query parameter or default to 'sales'
   const getTabFromURL = () => {
@@ -26,11 +34,6 @@ const ReportsPage = () => {
   };
   
   const [activeTab, setActiveTab] = useState(getTabFromURL());
-  const [dateRange, setDateRange] = useState({
-    startDate: null,
-    endDate: null
-  });
-  const [isCustomRange, setIsCustomRange] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [appliedRange, setAppliedRange] = useState({
     startDate: null,
@@ -52,110 +55,22 @@ const ReportsPage = () => {
     };
   }, []);
 
-  // Quick date range options
-  const dateRangeOptions = [
-    { id: 'today', label: 'Today' },
-    { id: 'yesterday', label: 'Yesterday' },
-    { id: 'last7days', label: 'Last 7 Days' },
-    { id: 'thisMonth', label: 'This Month' },
-    { id: 'lastMonth', label: 'Last Month' },
-    { id: 'custom', label: 'Custom Range' },
-  ];
-
-  // Set initial date range to "Last 7 Days" on component mount
+  // Set default date range (last 30 days) on mount
   useEffect(() => {
-    handleDateRangeSelect('last7days');
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    setAppliedRange({
+      startDate: thirtyDaysAgo.toISOString().split('T')[0],
+      endDate: today.toISOString().split('T')[0]
+    });
   }, []);
 
   // Update the URL when tab changes
   const handleTabChange = (tab) => {
     navigate(`/reports?tab=${tab}`);
     // setActiveTab is not needed here since useEffect will update it based on URL
-  };
-
-  const handleDateRangeSelect = (rangeId) => {
-    const today = new Date();
-    let startDate = null;
-    let endDate = null;
-
-    switch (rangeId) {
-      case 'today':
-        startDate = today;
-        endDate = today;
-        setIsCustomRange(false);
-        break;
-      case 'yesterday':
-        const yesterday = new Date(today);
-        yesterday.setDate(today.getDate() - 1);
-        startDate = yesterday;
-        endDate = yesterday;
-        setIsCustomRange(false);
-        break;
-      case 'last7days':
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setDate(today.getDate() - 7);
-        startDate = sevenDaysAgo;
-        endDate = today;
-        setIsCustomRange(false);
-        break;
-      case 'thisMonth':
-        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-        endDate = today;
-        setIsCustomRange(false);
-        break;
-      case 'lastMonth':
-        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
-        setIsCustomRange(false);
-        break;
-      case 'custom':
-        setIsCustomRange(true);
-        return;
-      default:
-        return;
-    }
-
-    // Format dates as ISO strings for consistency
-    const formattedStartDate = startDate ? startDate.toISOString().split('T')[0] : null;
-    const formattedEndDate = endDate ? endDate.toISOString().split('T')[0] : null;
-
-    setDateRange({
-      startDate: formattedStartDate,
-      endDate: formattedEndDate
-    });
-
-    // Also apply the range immediately when using quick options
-    setAppliedRange({
-      startDate: formattedStartDate,
-      endDate: formattedEndDate
-    });
-  };
-
-  const handleCustomRangeApply = () => {
-    // Validate date range
-    if (!dateRange.startDate || !dateRange.endDate) {
-      toast.error('Please select both start and end dates for custom range');
-      return;
-    }
-
-    // Ensure start date is not after end date
-    if (new Date(dateRange.startDate) > new Date(dateRange.endDate)) {
-      toast.error('Start date cannot be after end date');
-      return;
-    }
-
-    // Apply the custom date range
-    setAppliedRange({
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate
-    });
-  };
-
-  const handleCustomRangeReset = () => {
-    setDateRange({
-      startDate: null,
-      endDate: null
-    });
   };
 
   const handleExport = useCallback(async () => {
@@ -185,22 +100,68 @@ const ReportsPage = () => {
     } finally {
       setIsExporting(false);
     }
-  }, [activeTab, isExporting, appliedRange]);
+  }, [activeTab, isExporting, appliedRange, exportReport, fetchSales, fetchInventory]);
 
-  // Mock export functions (in a real app, these would call API services)
+  // Real export functions using the hooks
   const exportSalesReport = async () => {
-    // Simulate export process
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Fetch sales data first
+    const salesData = await fetchSales({ 
+      startDate: appliedRange.startDate,
+      endDate: appliedRange.endDate
+    });
+    
+    // Use the exportReport function from the useReports hook
+    await exportReport({
+      type: 'sales',
+      format: 'csv', // Can be 'csv', 'pdf', or 'excel'
+      fileName: `sales-report-${new Date().toISOString().split('T')[0]}`,
+      report: {
+        type: 'sales',
+        title: 'Sales Report',
+        dateRange: {
+          startDate: appliedRange.startDate,
+          endDate: appliedRange.endDate,
+          formatted: `${new Date(appliedRange.startDate).toLocaleDateString()} - ${new Date(appliedRange.endDate).toLocaleDateString()}`
+        },
+        data: salesData
+      }
+    });
   };
 
   const exportInventoryReport = async () => {
-    // Simulate export process
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Fetch inventory data first
+    const { ingredients, items } = await fetchInventory();
+    
+    // Use the exportReport function
+    await exportReport({
+      type: 'inventory',
+      format: 'csv',
+      fileName: `inventory-report-${new Date().toISOString().split('T')[0]}`,
+      report: {
+        type: 'inventory',
+        title: 'Inventory Report',
+        dateRange: {
+          startDate: appliedRange.startDate,
+          endDate: appliedRange.endDate,
+          formatted: `${new Date(appliedRange.startDate).toLocaleDateString()} - ${new Date(appliedRange.endDate).toLocaleDateString()}`
+        },
+        data: {
+          ingredients,
+          items
+        }
+      }
+    });
   };
 
   const exportFinancialReport = async () => {
-    // Simulate export process
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // For financial reports, we'll use the exportReport function directly
+    await exportReport({
+      type: 'financial',
+      format: 'csv',
+      fileName: `financial-report-${new Date().toISOString().split('T')[0]}`,
+      startDate: appliedRange.startDate,
+      endDate: appliedRange.endDate
+    });
   };
 
   // Format date range for display
@@ -261,36 +222,36 @@ const ReportsPage = () => {
                 staggerChildren: 0.1
               }
             },
-            exit: { opacity: 0 } // Add exit variant
+            exit: { opacity: 0 }
           }}
           initial="hidden"
           animate="show"
-          exit="exit" // Add this to enable exit animations
+          exit="exit"
           className="space-y-6"
         >
-          {/* Header area with icon and date range selector */}
+          {/* Header area with icon, title and export button */}
           <motion.div 
             className="flex justify-between items-center"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }} // Add exit animation
+            exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.5 }}
           >
             <motion.div
               className="flex items-center space-x-3"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }} // Add exit animation
+              exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               {/* Add AnimatePresence for the icon */}
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={`icon-${activeTab}`} // Add key to trigger proper animation
+                  key={`icon-${activeTab}`}
                   className="p-2 bg-[#FFF6F2] rounded-md border border-[#571C1F]/20 shadow-md relative overflow-hidden z-10"
                   initial={{ scale: 0, rotate: -10 }}
                   animate={{ scale: 1, rotate: 0 }}
-                  exit={{ scale: 0, rotate: 10, opacity: 0 }} // Add exit animation
+                  exit={{ scale: 0, rotate: 10, opacity: 0 }}
                   transition={{ 
                     type: "spring", 
                     stiffness: 260, 
@@ -329,10 +290,10 @@ const ReportsPage = () => {
               {/* Add AnimatePresence for the title */}
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={`title-${activeTab}`} // Add key to trigger proper animation
+                  key={`title-${activeTab}`}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }} // Add exit animation
+                  exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.3 }}
                 >
                   <h1 className="text-xl font-bold text-[#571C1F]">
@@ -349,69 +310,37 @@ const ReportsPage = () => {
               </AnimatePresence>
             </motion.div>
             
-            {/* Date range selector - add exit animation */}
+            {/* Export Button */}
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }} // Add exit animation
+              exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="flex items-center space-x-2"
             >
-              <select 
-                className="block pl-3 pr-10 py-2 text-base border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] sm:text-sm rounded-md bg-white"
-                onChange={(e) => handleDateRangeSelect(e.target.value)}
-                value={isCustomRange ? 'custom' : undefined}
+              <motion.button
+                onClick={handleExport}
+                className={`inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md font-medium text-white bg-[#571C1F] hover:bg-[#4A1519] transition-colors ${isExporting ? 'opacity-75 cursor-wait' : ''}`}
+                whileHover={{ scale: 1.02, y: -1, boxShadow: "0 4px 6px -1px rgba(87, 28, 31, 0.1), 0 2px 4px -1px rgba(87, 28, 31, 0.06)" }}
+                whileTap={{ scale: 0.98 }}
+                disabled={isExporting}
               >
-                {dateRangeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              
-              {/* Custom range inputs with AnimatePresence */}
-              <AnimatePresence mode="wait">
-                {isCustomRange && (
-                  <motion.div 
-                    key="custom-range-controls"
-                    initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                    animate={{ opacity: 1, height: 'auto', overflow: 'visible' }}
-                    exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                    transition={{ duration: 0.3 }}
-                    className="flex items-center space-x-2"
-                  >
-                    <input
-                      type="date"
-                      value={dateRange.startDate || ''}
-                      onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-                      className="block pl-3 pr-3 py-2 text-base border border-gray-300 focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] sm:text-sm rounded-md bg-white"
-                    />
-                    <span className="text-gray-500">to</span>
-                    <input
-                      type="date"
-                      value={dateRange.endDate || ''}
-                      onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-                      className="block pl-3 pr-3 py-2 text-base border border-gray-300 focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] sm:text-sm rounded-md bg-white"
-                    />
-                    <motion.button
-                      onClick={handleCustomRangeApply}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md font-medium text-white bg-[#571C1F] hover:bg-[#4A1519] transition-colors"
-                      whileHover={{ scale: 1.02, y: -1, boxShadow: "0 4px 6px -1px rgba(87, 28, 31, 0.1), 0 2px 4px -1px rgba(87, 28, 31, 0.06)" }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      Apply
-                    </motion.button>
-                    <motion.button
-                      onClick={handleCustomRangeReset}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm rounded-md font-medium text-gray-700 bg-white hover:bg-gray-50"
-                      whileHover={{ scale: 1.02, y: -1 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      Reset
-                    </motion.button>
-                  </motion.div>
+                {isExporting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Export Report
+                  </>
                 )}
-              </AnimatePresence>
+              </motion.button>
             </motion.div>
           </motion.div>
 
@@ -421,7 +350,7 @@ const ReportsPage = () => {
               className="h-1 bg-gradient-to-r from-[#571C1F] to-[#003B25] rounded-full mb-6"
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: "100%", opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }} // Add exit animation
+              exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.8 }}
             />
 
@@ -429,7 +358,7 @@ const ReportsPage = () => {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }} // Add exit animation
+              exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               className="rounded-lg"
             >

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import Button from '../common/Button';
 import { useInventory } from '../../hooks/useInventory';
 import { useAuth } from '../../hooks/useAuth';
@@ -6,7 +7,6 @@ import { useSuppliers } from '../../hooks/useSuppliers';
 import supabase from '../../services/supabase';
 import Swal from 'sweetalert2';
 import { UNITS } from '../../services/constants'; // Change from UNIT_OPTIONS to UNITS
-import { motion } from 'framer-motion';
 
 const PurchaseOrderForm = ({ 
   purchaseId = null, 
@@ -193,6 +193,12 @@ const PurchaseOrderForm = ({
     }
   };
   
+  const calculateItemTotal = (quantity, unit_price) => {
+    const qty = parseFloat(quantity) || 0;
+    const price = parseFloat(unit_price) || 0;
+    return (qty * price).toFixed(2);
+  };
+  
   const validateForm = () => {
     if (!form.created_by) return "Staff ID is required";
     if (!form.supplier_id) return "Please select a supplier";
@@ -275,7 +281,6 @@ const PurchaseOrderForm = ({
           quantity: parseFloat(item.quantity),
           unit_price: parseFloat(parseFloat(item.unit_price).toFixed(2)),
           subtotal: parseFloat(item.subtotal.toFixed(2))
-          // Remove created_at and updated_at fields
         })),
         
         // Additional data
@@ -321,7 +326,6 @@ const PurchaseOrderForm = ({
               quantity: parseFloat(item.quantity),
               unit_price: parseFloat(parseFloat(item.unit_price).toFixed(2)),
               subtotal: parseFloat(item.subtotal.toFixed(2))
-              // Remove created_at and updated_at fields
             }));
             
             const { data: detailsData, error: detailsError } = await supabase
@@ -412,179 +416,225 @@ const PurchaseOrderForm = ({
     }
   };
   
+  if (loading && isEdit && !purchaseData) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <svg className="animate-spin h-8 w-8 text-[#571C1F]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span className="ml-3 text-[#571C1F] font-medium">Loading purchase order details...</span>
+      </div>
+    );
+  }
+  
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Purchase order header */}
-      <motion.div 
-        className="bg-transparent rounded-lg border border-gray-200 p-4 shadow-sm"
+    <div className="max-w-4xl mx-auto">
+      <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h3 className="text-md font-medium text-white mb-3">Order Information</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Show purchase date only for existing orders */}
-          {isEdit && purchaseData?.purchase_date && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Purchase Date
-              </label>
-              <div className="mt-1 text-gray-900 dark:text-gray-100 font-medium">
-                {new Date(purchaseData.purchase_date).toLocaleString()}
-              </div>
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-r-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
             </div>
-          )}
-          
-          <div>
-            <label htmlFor="supplier_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Supplier <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="supplier_id"
-              name="supplier_id"
-              value={form.supplier_id}
-              onChange={handleChangeForm}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-dark-light dark:text-white"
-              disabled={loading || isEdit}
-              required
-            >
-              <option value="">Select a supplier</option>
-              {suppliers.map(supplier => (
-                <option key={supplier.supplier_id} value={supplier.supplier_id}>
-                  {supplier.company_name}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              {isEdit ? "Supplier cannot be changed for existing orders" : "Select the supplier for this purchase order"}
-            </p>
-          </div>
-          
-          {/* Total amount display */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Total Amount
-            </label>
-            <div className="mt-1 text-lg font-bold text-[#571C1F]">
-              ₱{totalAmount.toFixed(2)}
+            <div className="ml-3">
+              <p className="text-sm text-blue-700">
+                {isEdit 
+                  ? "Update purchase order details including items, quantities, and pricing" 
+                  : "Create a new purchase order for ingredients from suppliers"
+                }
+              </p>
             </div>
           </div>
         </div>
-      </motion.div>
-      
-      {/* Purchase order items */}
-      <motion.div 
-        className="bg-transparent rounded-lg border border-gray-200 p-4 shadow-sm"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-      >
-        <h3 className="text-md font-medium text-white mb-3">Order Items</h3>
         
-        <div className="space-y-4">
-          {orderItems.map((item, index) => (
-            <motion.div 
-              key={index} 
-              className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2, delay: index * 0.05 }}
-            >
-              {/* Item header with remove button */}
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-medium text-[#571C1F]">
-                  Item #{index + 1}
-                </h4>
-                
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => removeOrderItem(index)}
-                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                  disabled={loading}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Purchase order details */}
+          <motion.div 
+            className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <h3 className="text-lg font-medium text-[#571C1F] mb-4">Purchase Order Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Supplier */}
+              <div>
+                <label htmlFor="supplier_id" className="block text-sm font-medium text-[#571C1F] mb-1">
+                  Supplier *
+                </label>
+                <select
+                  id="supplier_id"
+                  name="supplier_id"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] border-gray-300`}
+                  onChange={handleChangeForm}
+                  value={form.supplier_id}
+                  disabled={loading || isEdit}
+                  required
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Remove
-                </Button>
+                  <option value="">Select a supplier</option>
+                  {suppliers.map(supplier => (
+                    <option key={supplier.supplier_id} value={supplier.supplier_id}>
+                      {supplier.company_name || supplier.supplier_name || 'Unknown Supplier'}
+                    </option>
+                  ))}
+                </select>
+                {isEdit && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Supplier cannot be changed when editing a purchase order
+                  </p>
+                )}
               </div>
               
-              {/* Item details */}
-              <div className="space-y-4">
-                {/* Ingredient selector with fuzzy search */}
+              {/* Order Date */}
+              {isEdit && purchaseData?.purchase_date && (
                 <div>
-                  <label htmlFor={`ingredient_${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Ingredient <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-[#571C1F] mb-1">
+                    Purchase Date
                   </label>
-                  
-                  {/* Ingredient search field and dropdown */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search or add a new ingredient..."
-                      value={item.name}
-                      onChange={(e) => {
-                        handleChangeItem(index, 'name', e.target.value);
-                        setSearchTerm(e.target.value);
-                        // Clear ingredient_id when searching
-                        if (!e.target.value) {
-                          handleChangeItem(index, 'ingredient_id', '');
-                        }
-                      }}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-dark-light dark:border-gray-600 dark:text-white"
-                      disabled={loading}
-                      required
-                    />
-                    
-                    {searchTerm && filteredIngredients.length > 0 && !item.ingredient_id && (
-                      <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
-                        {filteredIngredients.map(ingredient => (
-                          <div
-                            key={ingredient.ingredient_id}
-                            className="px-4 py-2 cursor-pointer hover:bg-gray-700"
-                            onClick={() => {
-                              handleChangeItem(index, 'ingredient_id', ingredient.ingredient_id.toString());
-                              handleChangeItem(index, 'name', ingredient.name);
-                              handleChangeItem(index, 'unit', ingredient.unit);
-                              setSearchTerm('');
-                              
-                              // Check if this ingredient has a typical price from this supplier
-                              const association = supplierAssociations.find(
-                                a => a.ingredient_id === ingredient.ingredient_id
-                              );
-                              if (association && association.typical_price) {
-                                handleChangeItem(index, 'unit_price', association.typical_price.toString());
-                              }
-                            }}
-                          >
-                            <div className="font-medium text-white">{ingredient.name}</div>
-                            <div className="text-xs text-gray-300">
-                              {ingredient.unit} • Current stock: {ingredient.quantity}
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+                    {new Date(purchaseData.purchase_date).toLocaleDateString()} {new Date(purchaseData.purchase_date).toLocaleTimeString()}
+                  </div>
+                </div>
+              )}
+              
+              {/* Notes */}
+              <div className="md:col-span-2">
+                <label htmlFor="notes" className="block text-sm font-medium text-[#571C1F] mb-1">
+                  Order Notes
+                </label>
+                <textarea
+                  id="notes"
+                  name="notes"
+                  rows="3"
+                  value={form.notes}
+                  onChange={handleChangeForm}
+                  placeholder="Add any additional instructions or notes for this purchase order"
+                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] border-gray-300"
+                  disabled={loading}
+                ></textarea>
+              </div>
+            </div>
+          </motion.div>
+          
+          {/* Purchase order items */}
+          <motion.div 
+            className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-[#571C1F]">Order Items</h3>
+              <Button 
+                type="button" 
+                variant="primary" 
+                size="sm"
+                onClick={addOrderItem}
+                className="flex items-center"
+              >
+                Add Item
+              </Button>
+            </div>
+            
+            {orderItems.map((item, index) => (
+              <motion.div 
+                key={index} 
+                className="bg-[#FFF6F2] p-5 rounded-lg mb-4 border border-[#571C1F]/10 relative"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: index * 0.05 }}
+              >
+                <div className="absolute right-2 top-2">
+                  <button
+                    type="button"
+                    onClick={() => removeOrderItem(index)}
+                    disabled={orderItems.length <= 1}
+                    className={`p-1.5 text-[#571C1F] hover:text-[#571C1F] hover:bg-[#571C1F]/10 rounded-full transition ${
+                      orderItems.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    title="Remove item"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                  {/* Ingredient Selection */}
+                  <div className="md:col-span-2">
+                    <label htmlFor={`ingredient_${index}`} className="block text-sm font-medium text-[#571C1F] mb-1">
+                      Ingredient *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search for an ingredient..."
+                        value={item.name}
+                        onChange={(e) => {
+                          handleChangeItem(index, 'name', e.target.value);
+                          setSearchTerm(e.target.value);
+                          // Clear ingredient_id when searching
+                          if (!e.target.value) {
+                            handleChangeItem(index, 'ingredient_id', '');
+                          }
+                        }}
+                        className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] border-gray-300"
+                        disabled={loading}
+                        required
+                      />
+                      
+                      {searchTerm && filteredIngredients.length > 0 && !item.ingredient_id && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                          {filteredIngredients.map(ingredient => (
+                            <div
+                              key={ingredient.ingredient_id}
+                              className="px-4 py-2 cursor-pointer hover:bg-[#FFF6F2]"
+                              onClick={() => {
+                                handleChangeItem(index, 'ingredient_id', ingredient.ingredient_id.toString());
+                                handleChangeItem(index, 'name', ingredient.name);
+                                handleChangeItem(index, 'unit', ingredient.unit);
+                                setSearchTerm('');
+                                
+                                // Check if this ingredient has a typical price from this supplier
+                                const association = supplierAssociations.find(
+                                  a => a.ingredient_id === ingredient.ingredient_id
+                                );
+                                if (association && association.typical_price) {
+                                  handleChangeItem(index, 'unit_price', association.typical_price.toString());
+                                }
+                              }}
+                            >
+                              <div className="font-medium text-[#571C1F]">{ingredient.name}</div>
+                              <div className="text-xs text-gray-600">
+                                {ingredient.unit} • Current stock: {ingredient.quantity}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {item.ingredient_id && supplierAssociations.some(a => a.ingredient_id.toString() === item.ingredient_id) && (
+                      <div className="mt-1 text-xs text-green-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Already associated with this supplier
                       </div>
                     )}
                   </div>
                   
-                  {/* Show associated suppliers if this ingredient has any */}
-                  {item.ingredient_id && supplierAssociations.some(a => a.ingredient_id.toString() === item.ingredient_id) && (
-                    <div className="mt-1 text-xs text-green-600">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      This ingredient is already associated with this supplier
-                    </div>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Quantity */}
                   <div>
-                    <label htmlFor={`quantity_${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Quantity <span className="text-red-500">*</span>
+                    <label htmlFor={`quantity_${index}`} className="block text-sm font-medium text-[#571C1F] mb-1">
+                      Quantity *
                     </label>
                     <input
                       id={`quantity_${index}`}
@@ -593,42 +643,33 @@ const PurchaseOrderForm = ({
                       step="0.01"
                       value={item.quantity}
                       onChange={e => handleChangeItem(index, 'quantity', e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-dark-light dark:border-gray-600 dark:text-white"
+                      className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] border-gray-300"
                       disabled={loading}
                       required
                     />
                   </div>
                   
+                  {/* Unit */}
                   <div>
-                    <label htmlFor={`unit_${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor={`unit_${index}`} className="block text-sm font-medium text-[#571C1F] mb-1">
                       Unit
                     </label>
-                    <select
+                    <input
+                      type="text"
                       id={`unit_${index}`}
                       value={item.unit}
-                      onChange={e => handleChangeItem(index, 'unit', e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-dark-light dark:border-gray-600 dark:text-white"
-                      disabled={loading || item.ingredient_id} // Disable if ingredient is selected
-                    >
-                      <option value="">Select unit</option>
-                      {UNITS.map(unit => (
-                        <option key={unit.value} value={unit.value}>
-                          {unit.label}
-                        </option>
-                      ))}
-                    </select>
-                    {item.ingredient_id && (
-                      <p className="mt-1 text-xs text-gray-500">
-                        Unit is determined by the selected ingredient
-                      </p>
-                    )}
+                      className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] border-gray-300"
+                      disabled={true}
+                      placeholder="Auto-filled"
+                    />
                   </div>
                   
+                  {/* Price */}
                   <div>
-                    <label htmlFor={`unit_price_${index}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Unit Price (₱) <span className="text-red-500">*</span>
+                    <label htmlFor={`unit_price_${index}`} className="block text-sm font-medium text-[#571C1F] mb-1">
+                      Unit Price (₱)
                     </label>
-                    <div className="mt-1 relative rounded-md shadow-sm">
+                    <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <span className="text-gray-500 sm:text-sm">₱</span>
                       </div>
@@ -639,97 +680,73 @@ const PurchaseOrderForm = ({
                         step="0.01"
                         value={item.unit_price}
                         onChange={e => handleChangeItem(index, 'unit_price', e.target.value)}
-                        className="block w-full pl-7 pr-12 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-dark-light dark:border-gray-600 dark:text-white"
+                        className="w-full pl-7 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] border-gray-300"
                         disabled={loading}
                         required
                       />
                     </div>
                   </div>
-                </div>
-                
-                {item.subtotal > 0 && (
-                  <div className="text-right font-medium text-[#571C1F]">
-                    Subtotal: ₱{item.subtotal.toFixed(2)}
+                  
+                  {/* Subtotal */}
+                  <div className="bg-[#571C1F]/5 p-3 rounded-md flex items-center justify-center">
+                    <span className="font-medium text-sm text-[#571C1F]">
+                      Subtotal: ₱{calculateItemTotal(item.quantity, item.unit_price)}
+                    </span>
                   </div>
-                )}
-              </div>
-            </motion.div>
-          ))}
-          
-          <div className="pt-2">
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Order Summary */}
+          <motion.div 
+            className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.3 }}
+          >
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-[#571C1F]">Order Summary</h3>
+              <div className="text-xl font-bold text-[#571C1F]">₱{totalAmount.toFixed(2)}</div>
+            </div>
+          </motion.div>
+
+          {/* Form Actions */}
+          <motion.div 
+            className="flex justify-end space-x-3 pt-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+          >
             <Button
               type="button"
-              variant="primary" // Changed from "outline" to "primary"
-              onClick={addOrderItem}
+              variant="outline"
+              onClick={onCancel}
               disabled={loading}
-              className="w-full flex items-center justify-center"
             >
-              <span className="whitespace-nowrap">Add Another Item</span>
+              Cancel
             </Button>
-          </div>
-        </div>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={loading || ingredientsLoading}
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </span>
+              ) : (
+                isEdit ? 'Update Purchase Order' : 'Create Purchase Order'
+              )}
+            </Button>
+          </motion.div>
+        </form>
       </motion.div>
-      
-      {/* Notes */}
-      <motion.div 
-        className="bg-transparent rounded-lg border border-gray-200 p-4 shadow-sm"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
-      >
-        <h3 className="text-md font-medium text-white mb-3">Additional Information</h3>
-        
-        <div>
-          <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Order Notes (Optional)
-          </label>
-          <textarea
-            id="notes"
-            name="notes"
-            rows="3"
-            value={form.notes}
-            onChange={handleChangeForm}
-            placeholder="Add any additional instructions or notes for this purchase order"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] dark:bg-dark-light dark:border-gray-600 dark:text-white"
-            disabled={loading}
-          ></textarea>
-        </div>
-      </motion.div>
-      
-      {/* Form actions */}
-      <motion.div 
-        className="flex justify-end space-x-3 pt-4"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.3 }}
-      >
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={loading || ingredientsLoading}
-        >
-          {loading ? (
-            <span className="flex items-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Submitting...
-            </span>
-          ) : (
-            isEdit ? 'Update Order' : 'Create Order'
-          )}
-        </Button>
-      </motion.div>
-    </form>
+    </div>
   );
 };
 
