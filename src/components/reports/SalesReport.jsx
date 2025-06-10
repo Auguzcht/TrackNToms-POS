@@ -46,7 +46,7 @@ const SalesReport = ({
   const { fetchSales, exportSalesReport } = useSales();
   const { exportReport } = useReports();
   const { 
-    fetchSalesForecast, 
+    getSalesForecast, // Change this from fetchSalesForecast to getSalesForecast
     getProductAssociations 
   } = useMLPredictions();
   const [loading, setLoading] = useState(true);
@@ -232,7 +232,8 @@ const SalesReport = ({
         
         // Get sales forecast data
         try {
-          const forecastResult = await fetchSalesForecast({
+          // Change this to use getSalesForecast instead of fetchSalesForecast
+          const forecastResult = await getSalesForecast({
             startDate: formattedStartDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
             endDate: formattedEndDate || new Date().toISOString(),
             forecastDays: 7
@@ -286,7 +287,7 @@ const SalesReport = ({
     };
     
     generateSalesReport();
-  }, [fetchSales, fetchSalesForecast, getProductAssociations, startDate, endDate, refreshKey]);
+  }, [fetchSales, getSalesForecast, getProductAssociations, startDate, endDate, refreshKey]);
 
   // Handle threshold changes for association rules
   const handleThresholdChange = (type, value) => {
@@ -980,7 +981,6 @@ const SalesReport = ({
                   onClick={() => onExport('associations', 'csv')}
                   size="sm"
                   type="secondary"
-                  icon="download"
                 >
                   Export
                 </Button>
@@ -1057,7 +1057,7 @@ const SalesReport = ({
           {associationRules.rules.length === 0 ? (
             <div className="text-center py-10 text-gray-500">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
               <p>No associations found with current thresholds</p>
               <p className="text-sm mt-2">Try lowering the confidence and support thresholds</p>
@@ -1076,25 +1076,29 @@ const SalesReport = ({
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-sm font-medium">{rule.antecedent.join(", ")}</span>
+                        <span className="text-sm font-medium">
+                          {rule.antecedent && Array.isArray(rule.antecedent) ? rule.antecedent.join(", ") : "Product"}
+                        </span>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                         </svg>
-                        <span className="text-sm font-medium">{rule.consequent.join(", ")}</span>
+                        <span className="text-sm font-medium">
+                          {rule.consequent && Array.isArray(rule.consequent) ? rule.consequent.join(", ") : "Related Product"}
+                        </span>
                       </div>
                       
                       <div className="grid grid-cols-3 gap-2">
                         <div className="text-center p-1 bg-[#571C1F]/5 rounded-md">
                           <div className="text-xs text-gray-500">Confidence</div>
-                          <div className="text-sm font-medium">{(rule.confidence * 100).toFixed(1)}%</div>
+                          <div className="text-sm font-medium">{(rule.confidence != null ? (rule.confidence * 100).toFixed(1) : '0.0')}%</div>
                         </div>
                         <div className="text-center p-1 bg-[#003B25]/5 rounded-md">
                           <div className="text-xs text-gray-500">Support</div>
-                          <div className="text-sm font-medium">{(rule.support * 100).toFixed(1)}%</div>
+                          <div className="text-sm font-medium">{(rule.support != null ? (rule.support * 100).toFixed(1) : '0.0')}%</div>
                         </div>
                         <div className="text-center p-1 bg-blue-50 rounded-md">
                           <div className="text-xs text-gray-500">Lift</div>
-                          <div className="text-sm font-medium">{rule.lift.toFixed(2)}x</div>
+                          <div className="text-sm font-medium">{(rule.lift != null ? rule.lift.toFixed(2) : '0.00')}x</div>
                         </div>
                       </div>
                     </div>
@@ -1166,7 +1170,7 @@ const SummaryCard = ({ title, value, prefix = '', suffix = '', change = 0, chang
       default:
         return (
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2m0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
         );
     }

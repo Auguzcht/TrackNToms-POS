@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
@@ -24,7 +24,7 @@ const ReportsPage = () => {
   // Import the hooks we need for export functionality
   const { exportReport } = useReports();
   const { fetchSales } = useSales();
-  const { fetchInventory } = useInventory();
+  const { fetchInventory, fetchInventoryForExport } = useInventory();
   
   // Get tab from URL query parameter or default to 'sales'
   const getTabFromURL = () => {
@@ -73,6 +73,107 @@ const ReportsPage = () => {
     // setActiveTab is not needed here since useEffect will update it based on URL
   };
 
+  // Store function references in refs
+  const exportReportRef = useRef(exportReport);
+  const fetchSalesRef = useRef(fetchSales);
+  const fetchInventoryForExportRef = useRef(fetchInventoryForExport);
+  
+  // Update refs when the functions change
+  useEffect(() => {
+    exportReportRef.current = exportReport;
+    fetchSalesRef.current = fetchSales;
+    fetchInventoryForExportRef.current = fetchInventoryForExport;
+  }, [exportReport, fetchSales, fetchInventoryForExport]);
+  
+  // Then use these stable refs in your callback functions
+  const exportSalesReport = useCallback(async () => {
+    // Fetch sales data first
+    const salesData = await fetchSalesRef.current({ 
+      startDate: appliedRange.startDate,
+      endDate: appliedRange.endDate
+    });
+    
+    // Use the exportReport function
+    await exportReportRef.current({
+      type: 'sales',
+      format: 'csv',
+      fileName: `sales-report-${new Date().toISOString().split('T')[0]}`,
+      report: {
+        type: 'sales',
+        title: 'Sales Report',
+        dateRange: {
+          startDate: appliedRange.startDate,
+          endDate: appliedRange.endDate,
+          formatted: `${new Date(appliedRange.startDate).toLocaleDateString()} - ${new Date(appliedRange.endDate).toLocaleDateString()}`
+        },
+        data: salesData
+      }
+    });
+  }, [appliedRange]);
+
+  const exportInventoryReport = useCallback(async () => {
+    try {
+      // Use the new function that doesn't update state
+      const { ingredients, items } = await fetchInventoryForExportRef.current();
+      
+      // Process ingredients data to avoid undefined values
+      const processedIngredients = ingredients.map(ing => {
+        const quantity = Number(ing.quantity) || 0;
+        const unitCost = Number(ing.unit_cost) || 0;
+        const value = quantity * unitCost;
+        
+        return {
+          ...ing,
+          quantity: quantity,
+          unit_cost: unitCost,
+          value: value,
+          // Ensure these are defined to avoid errors
+          name: ing.name || 'Unnamed',
+          category: ing.category || 'Uncategorized',
+          minimum_quantity: Number(ing.minimum_quantity) || 0,
+          unit: ing.unit || '',
+          stockStatus: ing.quantity <= 0 ? 'out' : 
+                       ing.quantity <= ing.minimum_quantity ? 'low' : 'normal'
+        };
+      });
+      
+      // Use the exportReport function
+      await exportReportRef.current({
+        type: 'inventory',
+        format: 'csv',
+        fileName: `inventory-report-${new Date().toISOString().split('T')[0]}`,
+        report: {
+          type: 'inventory',
+          title: 'Inventory Report',
+          dateRange: {
+            startDate: appliedRange.startDate,
+            endDate: appliedRange.endDate,
+            formatted: `${new Date(appliedRange.startDate).toLocaleDateString()} - ${new Date(appliedRange.endDate).toLocaleDateString()}`
+          },
+          data: {
+            ingredients: processedIngredients,
+            items: items || []
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error exporting inventory report:', error);
+      throw error;
+    }
+  }, [appliedRange]);
+
+  const exportFinancialReport = useCallback(async () => {
+    // For financial reports, we'll use the exportReport function directly
+    await exportReportRef.current({
+      type: 'financial',
+      format: 'csv',
+      fileName: `financial-report-${new Date().toISOString().split('T')[0]}`,
+      startDate: appliedRange.startDate,
+      endDate: appliedRange.endDate
+    });
+  }, [appliedRange]);
+  
+  // Now define handleExport with stable dependencies
   const handleExport = useCallback(async () => {
     if (isExporting) return;
     
@@ -100,69 +201,7 @@ const ReportsPage = () => {
     } finally {
       setIsExporting(false);
     }
-  }, [activeTab, isExporting, appliedRange, exportReport, fetchSales, fetchInventory]);
-
-  // Real export functions using the hooks
-  const exportSalesReport = async () => {
-    // Fetch sales data first
-    const salesData = await fetchSales({ 
-      startDate: appliedRange.startDate,
-      endDate: appliedRange.endDate
-    });
-    
-    // Use the exportReport function from the useReports hook
-    await exportReport({
-      type: 'sales',
-      format: 'csv', // Can be 'csv', 'pdf', or 'excel'
-      fileName: `sales-report-${new Date().toISOString().split('T')[0]}`,
-      report: {
-        type: 'sales',
-        title: 'Sales Report',
-        dateRange: {
-          startDate: appliedRange.startDate,
-          endDate: appliedRange.endDate,
-          formatted: `${new Date(appliedRange.startDate).toLocaleDateString()} - ${new Date(appliedRange.endDate).toLocaleDateString()}`
-        },
-        data: salesData
-      }
-    });
-  };
-
-  const exportInventoryReport = async () => {
-    // Fetch inventory data first
-    const { ingredients, items } = await fetchInventory();
-    
-    // Use the exportReport function
-    await exportReport({
-      type: 'inventory',
-      format: 'csv',
-      fileName: `inventory-report-${new Date().toISOString().split('T')[0]}`,
-      report: {
-        type: 'inventory',
-        title: 'Inventory Report',
-        dateRange: {
-          startDate: appliedRange.startDate,
-          endDate: appliedRange.endDate,
-          formatted: `${new Date(appliedRange.startDate).toLocaleDateString()} - ${new Date(appliedRange.endDate).toLocaleDateString()}`
-        },
-        data: {
-          ingredients,
-          items
-        }
-      }
-    });
-  };
-
-  const exportFinancialReport = async () => {
-    // For financial reports, we'll use the exportReport function directly
-    await exportReport({
-      type: 'financial',
-      format: 'csv',
-      fileName: `financial-report-${new Date().toISOString().split('T')[0]}`,
-      startDate: appliedRange.startDate,
-      endDate: appliedRange.endDate
-    });
-  };
+  }, [activeTab, isExporting, exportSalesReport, exportInventoryReport, exportFinancialReport]);
 
   // Format date range for display
   const displayDateRange = () => {

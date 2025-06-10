@@ -241,6 +241,9 @@ export const useInventory = () => {
 
   // Fetch all inventory data at once
   const fetchInventory = useCallback(async () => {
+    // Keep this log inside the function where it won't trigger re-renders
+    console.log("fetchInventory called");
+    
     setLoading(true);
     setError(null);
     
@@ -1162,6 +1165,28 @@ export const useInventory = () => {
     }
   }, []);
 
+  // New function to fetch inventory data for export
+  const fetchInventoryForExport = useCallback(async () => {
+    // Don't update state, just return data
+    try {
+      const [ingredientsData, itemsData, pulloutsData] = await Promise.all([
+        // Use the raw Supabase calls instead of the functions that update state
+        supabase.from('ingredients').select('*').order('name', { ascending: true }),
+        supabase.from('items').select('*').order('item_name', { ascending: true }),
+        supabase.from('pullout').select('*')
+      ]);
+      
+      return { 
+        ingredients: ingredientsData.data || [], 
+        items: itemsData.data || [], 
+        pullouts: pulloutsData.data || [] 
+      };
+    } catch (err) {
+      console.error('Error fetching inventory for export:', err);
+      throw err;
+    }
+  }, []);
+
   return {
     ingredients,
     items,
@@ -1191,7 +1216,8 @@ export const useInventory = () => {
     processItemSale,
     recipeIngredients,
     getIngredientSuppliers,
-    setPreferredSupplier
+    setPreferredSupplier,
+    fetchInventoryForExport // Add this to your returned object
   };
 };
 

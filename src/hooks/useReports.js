@@ -616,15 +616,16 @@ const useReports = () => {
             break;
             
           case 'inventory':
+            // Update the CSV data mapping for inventory report
             csvData = report.data.ingredients.map(ing => ({
               'Name': ing.name,
               'Category': ing.category || 'Uncategorized',
               'Current Stock': ing.quantity,
               'Unit': ing.unit,
               'Minimum Required': ing.minimum_quantity,
-              'Unit Cost': parseFloat(ing.unit_cost || 0).toFixed(2),
-              'Total Value': ing.value.toFixed(2),
-              'Status': ing.stockStatus.charAt(0).toUpperCase() + ing.stockStatus.slice(1)
+              'Unit Cost': ing.unit_cost ? parseFloat(ing.unit_cost).toFixed(2) : '0.00',
+              'Total Value': ing.value ? ing.value.toFixed(2) : '0.00',
+              'Status': ing.stockStatus ? ing.stockStatus.charAt(0).toUpperCase() + ing.stockStatus.slice(1) : 'Unknown'
             }));
             break;
             
