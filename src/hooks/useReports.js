@@ -577,20 +577,103 @@ const useReports = () => {
     const { 
       report = reportData,
       format = 'csv',
-      fileName = null
+      fileName = null,
+      type = null
     } = options;
     
-    if (!report) {
+    // Debug logging
+    console.log('Export report called with:', { report, format, fileName, type });
+    
+    // More robust check for report data
+    if (!report && !reportData) {
       toast.error('No report data to export');
       throw new Error('No report data available for export');
     }
+
+    setLoading(true);
     
     try {
-      setLoading(true);
+      // Make sure we have an actual report object
+      const actualReport = report || reportData;
+      
+      // Check for strange types that might come from string conversion
+      if (typeof actualReport === 'string' || actualReport instanceof String) {
+        console.error('Report data is unexpectedly a string:', actualReport);
+        toast.error('Invalid report format (received string)');
+        throw new Error('Invalid report format (received string)');
+      }
+      
+      // Handle whether report is directly provided or nested in a 'report' property
+      const reportToExport = (actualReport && typeof actualReport === 'object' && actualReport.report) ? 
+        actualReport.report : actualReport;
+      
+      // Validate that reportToExport is an object
+      if (!reportToExport || typeof reportToExport !== 'object') {
+        console.error('Invalid report format, not an object:', reportToExport);
+        toast.error('Invalid report format');
+        throw new Error('Invalid report format');
+      }
+      
+      // If type was passed explicitly as a string, use it
+      if (type && typeof type === 'string' && !reportToExport.type) {
+        reportToExport.type = type;
+      }
+      
+      // Ensure reportToExport has valid properties
+      if (!reportToExport.type) {
+        console.error('Invalid report format: missing type property', reportToExport);
+        toast.error('Invalid report format: missing type');
+        throw new Error('Invalid report format: missing type');
+      }
+
+      // Generate a proper file name
+      const safeFileName = typeof fileName === 'string' ? 
+        fileName : 
+        `${reportToExport.type}-report-${new Date().toISOString().split('T')[0]}`;
+      
+      // Initialize missing structures to prevent "Cannot read properties of undefined" errors
+      if (reportToExport.type === 'financial') {
+        // Ensure summary exists
+        if (!reportToExport.summary) {
+          reportToExport.summary = {
+            revenue: 0,
+            expenses: 0,
+            grossProfit: 0,
+            netProfit: 0,
+            grossProfitMargin: 0,
+            netProfitMargin: 0
+          };
+        }
+        
+        // Ensure analytics structure exists
+        if (!reportToExport.analytics) {
+          reportToExport.analytics = {
+            revenue: { byCategory: {}, dailyTrend: [] },
+            expenses: { byCategory: {} }
+          };
+        } else {
+          if (!reportToExport.analytics.revenue) {
+            reportToExport.analytics.revenue = { byCategory: {}, dailyTrend: [] };
+          } else if (!reportToExport.analytics.revenue.byCategory) {
+            reportToExport.analytics.revenue.byCategory = {};
+          }
+          
+          if (!reportToExport.analytics.expenses) {
+            reportToExport.analytics.expenses = { byCategory: {} };
+          } else if (!reportToExport.analytics.expenses.byCategory) {
+            reportToExport.analytics.expenses.byCategory = {};
+          }
+        }
+      }
       
       // Generate default file name based on report type
-      const defaultFileName = `${report.title.replace(/\s+/g, '-').toLowerCase()}-${
-        report.dateRange.formatted.replace(/\s+/g, '-').toLowerCase()
+      const reportTitle = reportToExport.title || reportToExport.type;
+      const formattedDateRange = reportToExport.dateRange && reportToExport.dateRange.formatted ? 
+        reportToExport.dateRange.formatted : 
+        new Date().toISOString().split('T')[0];
+      
+      const defaultFileName = `${reportTitle.replace(/\s+/g, '-').toLowerCase()}-${
+        formattedDateRange.replace(/\s+/g, '-').toLowerCase()
       }`;
       
       const outputFileName = fileName || defaultFileName;
@@ -602,9 +685,10 @@ const useReports = () => {
         // Prepare data for CSV export based on report type
         let csvData;
         
-        switch (report.type) {
+        switch (reportToExport.type) {
           case 'sales':
-            csvData = report.data.map(sale => ({
+            // Your existing sales export code
+            csvData = reportToExport.data.map(sale => ({
               'Sale ID': sale.sale_id,
               'Date': new Date(sale.sale_date).toLocaleDateString(),
               'Time': new Date(sale.sale_date).toLocaleTimeString(),
@@ -616,8 +700,8 @@ const useReports = () => {
             break;
             
           case 'inventory':
-            // Update the CSV data mapping for inventory report
-            csvData = report.data.ingredients.map(ing => ({
+            // Your existing inventory export code
+            csvData = reportToExport.data.ingredients.map(ing => ({
               'Name': ing.name,
               'Category': ing.category || 'Uncategorized',
               'Current Stock': ing.quantity,
@@ -630,64 +714,52 @@ const useReports = () => {
             break;
             
           case 'financial':
-            // Create a combined report with revenue and expenses
-            csvData = [
-              // Header row for the report
-              {
-                'Report Type': 'Financial Summary',
-                'Period': report.dateRange.formatted,
-                'Generated On': new Date().toLocaleString()
-              },
-              // Empty row for spacing
-              {},
-              // Summary section
-              {
-                'Metric': 'Total Revenue',
-                'Value': report.summary.revenue.toFixed(2)
-              },
-              {
-                'Metric': 'Total Expenses',
-                'Value': report.summary.expenses.toFixed(2)
-              },
-              {
-                'Metric': 'Gross Profit',
-                'Value': report.summary.grossProfit.toFixed(2)
-              },
-              {
-                'Metric': 'Net Profit',
-                'Value': report.summary.netProfit.toFixed(2)
-              },
-              {
-                'Metric': 'Net Profit Margin',
-                'Value': `${report.summary.netProfitMargin.toFixed(2)}%`
-              },
-              // Empty row for spacing
-              {},
-              // Revenue breakdown header
-              { 'Category': 'REVENUE BY CATEGORY' },
-              // Revenue data
-              ...Object.entries(report.analytics.revenue.byCategory).map(([category, amount]) => ({
-                'Category': category,
-                'Amount': amount.toFixed(2),
-                'Percentage': `${(amount / report.summary.revenue * 100).toFixed(2)}%`
-              })),
-              // Empty row for spacing
-              {},
-              // Expenses breakdown header
-              { 'Category': 'EXPENSES BY CATEGORY' },
-              // Expenses data
-              ...Object.entries(report.analytics.expenses.byCategory).map(([category, amount]) => ({
-                'Category': category.charAt(0).toUpperCase() + category.slice(1),
-                'Amount': amount.toFixed(2),
-                'Percentage': `${(amount / report.summary.expenses * 100).toFixed(2)}%`
-              }))
-            ];
+            // Check if we have pre-formatted CSV data
+            if (reportToExport.data && Array.isArray(reportToExport.data)) {
+              csvData = reportToExport.data;
+            } else {
+              // Fallback to generating CSV data from summary and analytics
+              csvData = [
+                // Header row
+                {
+                  'Report Type': 'Financial Summary',
+                  'Period': reportToExport.dateRange?.formatted || 'All Time',
+                  'Generated On': new Date().toLocaleString()
+                },
+                {}, // Empty row
+                
+                // Summary section
+                { 'Metric': 'Total Revenue', 'Value': `₱${(reportToExport.summary.revenue || 0).toFixed(2)}` },
+                { 'Metric': 'Total Expenses', 'Value': `₱${(reportToExport.summary.expenses || 0).toFixed(2)}` },
+                { 'Metric': 'Gross Profit', 'Value': `₱${(reportToExport.summary.grossProfit || 0).toFixed(2)}` },
+                { 'Metric': 'Net Profit', 'Value': `₱${(reportToExport.summary.netProfit || 0).toFixed(2)}` },
+                { 'Metric': 'Profit Margin', 'Value': `${(reportToExport.summary.netProfitMargin || 0).toFixed(2)}%` },
+                {}, // Empty row
+                
+                // Revenue breakdown
+                { 'Category': 'REVENUE BY CATEGORY' },
+                ...Object.entries(reportToExport.analytics.revenue.byCategory || {}).map(([category, amount]) => ({
+                  'Category': category,
+                  'Amount': `₱${(amount || 0).toFixed(2)}`,
+                  'Percentage': `${((amount || 0) / (reportToExport.summary.revenue || 1) * 100).toFixed(1)}%`
+                })),
+                {}, // Empty row
+                
+                // Expenses breakdown
+                { 'Category': 'EXPENSES BY CATEGORY' },
+                ...Object.entries(reportToExport.analytics.expenses.byCategory || {}).map(([category, amount]) => ({
+                  'Category': category.charAt(0).toUpperCase() + category.slice(1),
+                  'Amount': `₱${(amount || 0).toFixed(2)}`,
+                  'Percentage': `${((amount || 0) / (reportToExport.summary.expenses || 1) * 100).toFixed(1)}%`
+                }))
+              ];
+            }
             break;
             
           case 'custom':
           default:
             // For custom reports, just export the data directly
-            csvData = report.data;
+            csvData = reportToExport.data;
             break;
         }
         
@@ -695,8 +767,7 @@ const useReports = () => {
         blob = exportToCSV(csvData);
         
       } else if (format === 'pdf') {
-        // For PDF export, we'll need to format the data differently
-        // In a real app, you'd use a library like pdfmake or jsPDF
+        // For PDF export
         blob = await exportToPDF(report);
       } else if (format === 'excel') {
         try {
@@ -718,6 +789,8 @@ const useReports = () => {
               break;
               
             // Handle other report types...
+            default:
+              worksheetData = [];
           }
           
           // Create worksheet and workbook

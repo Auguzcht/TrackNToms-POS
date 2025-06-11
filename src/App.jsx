@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
@@ -154,7 +154,7 @@ function MainApp() {
                         <Route 
                           path="/suppliers" 
                           element={
-                            <RoleRoute allowedRoles={['Admin', 'Manager']}>
+                            <RoleRoute allowedRoles={['Admin', 'Manager', 'Supplier']}> {/* Add Supplier role here */}
                               <SuppliersPage />
                             </RoleRoute>
                           } 
@@ -237,6 +237,33 @@ function App() {
     setShowLoading(false);
   };
 
+  // Supplier tab redirection logic
+  const SupplierTabRedirect = () => {
+    const { user } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
+    
+    useEffect(() => {
+      // Only run for supplier users
+      if (user?.role === 'Supplier') {
+        // If they access /suppliers without a tab parameter, redirect to purchase orders
+        if (location.pathname === '/suppliers' && !location.search.includes('tab=')) {
+          console.log('Supplier redirecting to purchase orders');
+          navigate('/suppliers?tab=purchase-orders', { replace: true });
+        }
+        
+        // If they try to access a page they shouldn't, redirect to dashboard
+        const restrictedPaths = ['/staff', '/reports'];
+        if (restrictedPaths.includes(location.pathname)) {
+          console.log('Redirecting supplier from restricted path');
+          navigate('/', { replace: true });
+        }
+      }
+    }, [location.pathname, location.search, user, navigate]);
+    
+    return null; // This is just a logic component, no rendering needed
+  };
+
   return (
     <Router basename="/TrackNToms-POS">
       <AuthProvider>
@@ -258,6 +285,7 @@ function App() {
                 className="w-full h-full"
               >
                 <MainApp />
+                <SupplierTabRedirect /> {/* Include the redirect component here */}
               </motion.div>
             )}
           </AnimatePresence>

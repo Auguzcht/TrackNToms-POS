@@ -24,7 +24,7 @@ const POSPage = () => {
       const items = await fetchItems();
       
       if (!items || items.length === 0) {
-        toast.warning('No menu items found. Please add items in the Inventory section.');
+        // Simply set empty data without showing any toast warning
         setProductData({
           categories: [],
           products: []

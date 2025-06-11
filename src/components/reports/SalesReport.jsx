@@ -20,6 +20,7 @@ import {
   Filler 
 } from 'chart.js';
 import supabase from '../../services/supabase';
+import { toast } from 'react-hot-toast';
 
 // Register Chart.js components
 ChartJS.register(
@@ -262,17 +263,22 @@ const SalesReport = ({
         
         // Get product associations
         try {
-          const associations = await getProductAssociations({
+          const rawAssociations = await getProductAssociations({
             minConfidence: 0.3,
             minSupport: 0.01
           });
           
+          // Process the raw data into the format expected by the component
+          const processedAssociations = processAssociationRules(rawAssociations);
+          
           setAssociationRules({
-            rules: associations.rules || [],
-            metrics: associations.metrics || {},
+            rules: processedAssociations.rules || [],
+            metrics: processedAssociations.metrics || {},
             confidence: 0.3,
             support: 0.01
           });
+          
+          console.log('Processed associations:', processedAssociations);
         } catch (associationsErr) {
           console.error('Error loading product associations:', associationsErr);
           // Don't fail the whole report if just associations fail
@@ -290,7 +296,7 @@ const SalesReport = ({
   }, [fetchSales, getSalesForecast, getProductAssociations, startDate, endDate, refreshKey]);
 
   // Handle threshold changes for association rules
-  const handleThresholdChange = (type, value) => {
+  const handleThresholdChange = useCallback((type, value) => {
     const updatedValue = parseFloat(value);
     setAssociationRules(prev => ({
       ...prev,
@@ -301,14 +307,22 @@ const SalesReport = ({
     getProductAssociations({
       minConfidence: type === 'confidence' ? updatedValue : associationRules.confidence,
       minSupport: type === 'support' ? updatedValue : associationRules.support
-    }).then(result => {
+    }).then(rawResult => {
+      // Process the raw data into the expected format
+      const processedResult = processAssociationRules(rawResult);
+      
       setAssociationRules(prev => ({
         ...prev,
-        rules: result.rules || [],
-        metrics: result.metrics || {}
+        rules: processedResult.rules || [],
+        metrics: processedResult.metrics || {}
       }));
+      
+      console.log('Updated associations after threshold change:', processedResult);
+    }).catch(error => {
+      console.error('Error fetching association rules with new thresholds:', error);
+      toast.error('Failed to update product associations');
     });
-  };
+  }, [associationRules.confidence, associationRules.support, getProductAssociations]);
 
   // Function to handle exporting data
   const handleExportData = async (format = 'csv') => {
@@ -345,6 +359,69 @@ const SalesReport = ({
     setTimeout(() => {
       setShowRefreshIndicator(false);
     }, 1000);
+  };
+
+  // Add this function where you process the association rules data
+  const processAssociationRules = (rawData) => {
+    if (!rawData || (!rawData.rules && !rawData.isMockData)) {
+      return { rules: [], metrics: {} };
+    }
+    
+    // For mock data, we need a different structure
+    if (rawData.isMockData) {
+      // Convert mock data format to the expected component format
+      return {
+        rules: rawData.rules.map(rule => ({
+          item: {
+            item_id: rule.source_item_id,
+            item_name: rule.source_name,
+            category: 'Coffee' // Mock category
+          },
+          associated_item: {
+            item_id: rule.target_item_id,
+            item_name: rule.target_name,
+            category: 'Food' // Mock category
+          },
+          confidence: rule.confidence,
+          support: rule.support,
+          lift: rule.lift
+        })),
+        metrics: rawData.metrics || {}
+      };
+    }
+    
+    // Process the nested structure from the edge function
+    const processedRules = [];
+    
+    // Transform data to the format expected by ProductAssociationChart
+    if (rawData.rules && rawData.rules.length > 0) {
+      rawData.rules.forEach(sourceItem => {
+        if (sourceItem.targets && sourceItem.targets.length > 0) {
+          sourceItem.targets.forEach(targetItem => {
+            processedRules.push({
+              item: {
+                item_id: sourceItem.source,
+                item_name: sourceItem.source_name,
+                category: sourceItem.source_category
+              },
+              associated_item: {
+                item_id: targetItem.target_id,
+                item_name: targetItem.target_name,
+                category: targetItem.target_category
+              },
+              confidence: targetItem.confidence,
+              support: targetItem.support,
+              lift: targetItem.lift
+            });
+          });
+        }
+      });
+    }
+    
+    return {
+      rules: processedRules,
+      metrics: rawData.metrics
+    };
   };
 
   if (loading) {
@@ -443,11 +520,44 @@ const SalesReport = ({
               <div className="w-3 h-3 bg-[#571C1F] rounded-full mr-2"></div>
               <span className="text-sm text-gray-500">Next 7 days sales prediction based on historical patterns</span>
             </div>
-            {forecastData.accuracy && (
-              <div className="px-3 py-1 bg-[#003B25]/10 rounded-full text-xs text-[#003B25] font-medium">
-                Accuracy: {forecastData.accuracy}%
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {forecastData.accuracy && (
+                <div className="px-3 py-1 bg-[#003B25]/10 rounded-full text-xs text-[#003B25] font-medium">
+                  Accuracy: {forecastData.accuracy}%
+                </div>
+              )}
+              <Button
+                onClick={async () => {
+                  try {
+                    const newForecast = await getSalesForecast({
+                      startDate: startDate ? new Date(startDate).toISOString() : undefined,
+                      endDate: endDate ? new Date(endDate).toISOString() : undefined,
+                      forecastDays: 7,
+                      forceRefresh: true
+                    });
+                    
+                    if (newForecast && newForecast.forecast) {
+                      setForecastData({
+                        dates: newForecast.forecast.map(point => point.date) || [],
+                        predictions: newForecast.forecast.map(point => point.prediction) || [],
+                        actual: newForecast.forecast.map(point => point.actual) || [],
+                        lowerBound: newForecast.forecast.map(point => point.lower_bound) || [],
+                        upperBound: newForecast.forecast.map(point => point.upper_bound) || [],
+                        accuracy: newForecast.accuracy?.mape ? (100 - newForecast.accuracy.mape).toFixed(1) : null
+                      });
+                      toast.success("Sales forecast refreshed successfully");
+                    }
+                  } catch (err) {
+                    console.error('Error refreshing forecast:', err);
+                    toast.error("Failed to refresh sales forecast");
+                  }
+                }}
+                size="sm"
+                type="secondary"
+              >
+                Refresh Prediction
+              </Button>
+            </div>
           </div>
           
           <div style={{ height: "350px" }}>
@@ -1065,40 +1175,39 @@ const SalesReport = ({
           ) : (
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
               {associationRules.rules.slice(0, 10).map((rule, index) => (
-                <motion.div
-                  key={`${rule.antecedent}-${rule.consequent}-${index}`}
-                  className="p-3 border border-gray-100 rounded-lg shadow-sm bg-white"
+                <motion.div 
+                  key={`rule-${index}`}
+                  className="bg-white p-3 rounded-lg border border-[#571C1F]/10 shadow-sm"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  whileHover={{ y: -1, backgroundColor: '#fafafa' }}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-sm font-medium">
-                          {rule.antecedent && Array.isArray(rule.antecedent) ? rule.antecedent.join(", ") : "Product"}
+                  <div className="flex flex-col">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-1">
+                        <span className="text-sm font-medium text-gray-700">
+                          {rule.item?.item_name || "Product"}
                         </span>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                         </svg>
-                        <span className="text-sm font-medium">
-                          {rule.consequent && Array.isArray(rule.consequent) ? rule.consequent.join(", ") : "Related Product"}
+                        <span className="text-sm font-medium text-gray-700">
+                          {rule.associated_item?.item_name || "Related Product"}
                         </span>
                       </div>
                       
                       <div className="grid grid-cols-3 gap-2">
                         <div className="text-center p-1 bg-[#571C1F]/5 rounded-md">
                           <div className="text-xs text-gray-500">Confidence</div>
-                          <div className="text-sm font-medium">{(rule.confidence != null ? (rule.confidence * 100).toFixed(1) : '0.0')}%</div>
+                          <div className="text-sm font-medium text-gray-800">{(rule.confidence != null ? (rule.confidence * 100).toFixed(1) : '0.0')}%</div>
                         </div>
                         <div className="text-center p-1 bg-[#003B25]/5 rounded-md">
                           <div className="text-xs text-gray-500">Support</div>
-                          <div className="text-sm font-medium">{(rule.support != null ? (rule.support * 100).toFixed(1) : '0.0')}%</div>
+                          <div className="text-sm font-medium text-gray-800">{(rule.support != null ? (rule.support * 100).toFixed(1) : '0.0')}%</div>
                         </div>
                         <div className="text-center p-1 bg-blue-50 rounded-md">
                           <div className="text-xs text-gray-500">Lift</div>
-                          <div className="text-sm font-medium">{(rule.lift != null ? rule.lift.toFixed(2) : '0.00')}x</div>
+                          <div className="text-sm font-medium text-gray-800">{(rule.lift != null ? rule.lift.toFixed(2) : '0.00')}x</div>
                         </div>
                       </div>
                     </div>

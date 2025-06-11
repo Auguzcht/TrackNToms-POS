@@ -32,5 +32,3 @@ logs/
 
 # dotenv environment variables file
 .env*
-
-firebase.js

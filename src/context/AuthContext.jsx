@@ -197,7 +197,7 @@ export const AuthProvider = ({ children }) => {
   // Login function
   const login = async (email, password, remember = false) => {
     try {
-      console.log('Attempting login for:', email);
+      console.log('Attempting login for:', email, 'with remember:', remember);
       
       if (!email || !password) {
         return {
@@ -209,6 +209,12 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: {
+          // Configure session persistence based on remember checkbox
+          // When true: persists session in localStorage (default)
+          // When false: uses sessionStorage (cleared when browser is closed)
+          persistSession: remember 
+        }
       });
 
       if (error) {

@@ -162,46 +162,85 @@ const ReportsPage = () => {
     }
   }, [appliedRange]);
 
+  // Add a reference to the FinancialReport component
+  const financialReportRef = useRef(null);
+
+  // Update the exportFinancialReport function
   const exportFinancialReport = useCallback(async () => {
-    // For financial reports, we'll use the exportReport function directly
-    await exportReportRef.current({
-      type: 'financial',
-      format: 'csv',
-      fileName: `financial-report-${new Date().toISOString().split('T')[0]}`,
-      startDate: appliedRange.startDate,
-      endDate: appliedRange.endDate
-    });
+    // Check if we have a ref to the FinancialReport component
+    if (financialReportRef.current && financialReportRef.current.handleExport) {
+      // Call the component's own export function
+      financialReportRef.current.handleExport('csv');
+    } else {
+      // Fallback to a simpler export approach
+      await exportReportRef.current({
+        type: 'financial',
+        format: 'csv',
+        fileName: `financial-report-${new Date().toISOString().split('T')[0]}`,
+        // Use the limited data we have available here
+        report: {
+          type: 'financial',
+          title: 'Financial Report',
+          dateRange: {
+            startDate: appliedRange.startDate,
+            endDate: appliedRange.endDate,
+            formatted: `${new Date(appliedRange.startDate).toLocaleDateString()} - ${new Date(appliedRange.endDate).toLocaleDateString()}`
+          }
+        }
+      });
+    }
   }, [appliedRange]);
   
-  // Now define handleExport with stable dependencies
-  const handleExport = useCallback(async () => {
+  // Update the handleExport function to handle component-specific exports better
+  const handleExport = useCallback((reportType, format, reportData) => {
     if (isExporting) return;
     
     setIsExporting(true);
     
     try {
-      switch (activeTab) {
-        case 'sales':
-          await exportSalesReport();
-          break;
-        case 'inventory':
-          await exportInventoryReport();
-          break;
-        case 'financial':
-          await exportFinancialReport();
-          break;
-        default:
-          throw new Error('Unknown report type');
+      // Validate that we have report data
+      if (!reportData) {
+        console.error('No report data provided for export');
+        toast.error('No data to export');
+        throw new Error('No data to export');
       }
       
-      toast.success(`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} report exported successfully`);
+      // Validate reportType is a string
+      const reportTypeStr = typeof reportType === 'string' ? 
+        reportType : 'report';
+      
+      // Validate format is a string
+      const formatStr = typeof format === 'string' ? 
+        format : 'csv';
+
+      // Debug log
+      console.log(`Exporting ${reportTypeStr} report in ${formatStr} format with data:`, reportData);
+      
+      // For financial reports, handle the data differently
+      if (reportTypeStr === 'financial') {
+        exportReportRef.current({
+          report: reportData,
+          format: formatStr,
+          fileName: `financial-report-${new Date().toISOString().split('T')[0]}`
+        });
+      } else {
+        // For other report types, use the existing approach
+        exportReportRef.current({
+          type: reportTypeStr,
+          format: formatStr,
+          fileName: `${reportTypeStr}-report-${new Date().toISOString().split('T')[0]}`,
+          report: reportData
+        });
+      }
+      
+      toast.success(`${reportTypeStr.charAt(0).toUpperCase() + reportTypeStr.slice(1)} report exported successfully`);
     } catch (error) {
       console.error('Export error:', error);
-      toast.error(`Failed to export ${activeTab} report: ${error.message}`);
+      toast.error(`Failed to export report: ${error.message}`);
     } finally {
       setIsExporting(false);
     }
-  }, [activeTab, isExporting, exportSalesReport, exportInventoryReport, exportFinancialReport]);
+  }, [isExporting]);
 
   // Format date range for display
   const displayDateRange = () => {
@@ -357,7 +396,16 @@ const ReportsPage = () => {
               transition={{ duration: 0.5, delay: 0.2 }}
             >
               <motion.button
-                onClick={handleExport}
+                onClick={() => {
+                  // Call the appropriate export function based on the active tab
+                  if (activeTab === 'sales') {
+                    exportSalesReport();
+                  } else if (activeTab === 'inventory') {
+                    exportInventoryReport();
+                  } else if (activeTab === 'financial') {
+                    exportFinancialReport();
+                  }
+                }}
                 className={`inline-flex items-center px-4 py-2 border border-transparent text-sm rounded-md font-medium text-white bg-[#571C1F] hover:bg-[#4A1519] transition-colors ${isExporting ? 'opacity-75 cursor-wait' : ''}`}
                 whileHover={{ scale: 1.02, y: -1, boxShadow: "0 4px 6px -1px rgba(87, 28, 31, 0.1), 0 2px 4px -1px rgba(87, 28, 31, 0.06)" }}
                 whileTap={{ scale: 0.98 }}
@@ -443,6 +491,7 @@ const ReportsPage = () => {
                     transition={{ duration: 0.3 }}
                   >
                     <FinancialReport 
+                      ref={financialReportRef}
                       startDate={appliedRange.startDate}
                       endDate={appliedRange.endDate}
                       onExport={handleExport}

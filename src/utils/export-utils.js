@@ -5,38 +5,49 @@
  * @returns {Blob} CSV blob
  */
 export const exportToCSV = (data) => {
-  if (!data || !data.length) {
-    throw new Error('No data provided for export');
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return new Blob(['No data to export'], { type: 'text/csv;charset=utf-8;' });
   }
-  
-  // Get headers from the first item
-  const headers = Object.keys(data[0]);
-  
-  // Create CSV content
-  const csvRows = [];
-  
-  // Add headers
-  csvRows.push(headers.join(','));
-  
-  // Add data rows
-  for (const row of data) {
+
+  // Add BOM (Byte Order Mark) to ensure Excel recognizes UTF-8 encoding
+  let csvContent = '\uFEFF';
+
+  // Get all unique headers from all objects in data
+  const headers = [];
+  data.forEach(row => {
+    if (row && typeof row === 'object') {
+      Object.keys(row).forEach(key => {
+        if (!headers.includes(key)) {
+          headers.push(key);
+        }
+      });
+    }
+  });
+
+  csvContent += headers.join(',') + '\r\n';
+
+  data.forEach(row => {
+    // Handle empty rows (used for spacing in reports)
+    if (!row || Object.keys(row).length === 0) {
+      csvContent += '\r\n';
+      return;
+    }
+    
     const values = headers.map(header => {
       const value = row[header];
-      
-      // Handle special cases
-      if (value === null || value === undefined) return '';
-      if (typeof value === 'object') return JSON.stringify(value);
-      
-      // Escape commas and quotes
-      const escaped = String(value).replace(/"/g, '""');
-      return `"${escaped}"`;
+      // Handle values that contain commas, quotes, or newlines
+      if (value === null || value === undefined) {
+        return '';
+      }
+      const stringValue = String(value);
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
     });
-    
-    csvRows.push(values.join(','));
-  }
-  
-  // Create the CSV blob
-  const csvContent = csvRows.join('\n');
+    csvContent += values.join(',') + '\r\n';
+  });
+
   return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
 };
 

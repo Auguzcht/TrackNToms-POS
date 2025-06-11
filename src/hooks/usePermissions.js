@@ -9,36 +9,93 @@ import { useAuth } from './useAuth';
 export const usePermissions = () => {
   const { user } = useAuth();
   
-  // Define permission map for different roles
+  // Define permission map for different roles based on the actual database permissions
   const rolePermissions = useMemo(() => ({
     Admin: [
       // Admin has all permissions
-      'staff.view', 'staff.create', 'staff.edit', 'staff.delete',
-      'inventory.view', 'inventory.adjust', 'inventory.create', 'inventory.edit', 'inventory.delete',
-      'order.view', 'order.create', 'order.edit', 'order.delete', 'order.void',
-      'menu.view', 'menu.create', 'menu.edit', 'menu.delete', 'menu.categories',
-      'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete',
-      'consignments.view', 'consignments.create', 'consignments.edit', 'consignments.delete',
-      'pullouts.view', 'pullouts.create', 'pullouts.edit', 'pullouts.delete', 'pullouts.approve',
-      'reports.view', 'reports.export', 'reports.sales', 'reports.inventory', 'reports.financial',
-      'settings.view', 'settings.edit', 'settings.advanced'
+      // Staff permissions
+      'staff.view', 'staff.create', 'staff.edit', 'staff.delete', 'staff.manage', 'staff.approve',
+      
+      // Inventory permissions
+      'inventory.view', 'inventory.create', 'inventory.edit', 'inventory.delete', 'inventory.manage', 'inventory.approve',
+      
+      // Items (menu) permissions
+      'items.view', 'items.create', 'items.edit', 'items.delete', 'items.manage', 'items.approve',
+      
+      // Sales permissions
+      'sales.view', 'sales.create', 'sales.edit', 'sales.delete', 'sales.manage', 'sales.approve',
+      
+      // Suppliers permissions
+      'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete', 'suppliers.manage', 'suppliers.approve',
+      
+      // Ingredients permissions
+      'ingredients.view', 'ingredients.create', 'ingredients.edit', 'ingredients.delete', 'ingredients.manage',
+      
+      // Purchase permissions
+      'purchase.view', 'purchase.create', 'purchase.edit', 'purchase.delete', 'purchase.manage', 'purchase.approve', 
+      'purchases.view', 'purchases.create', 'purchases.edit', 'purchases.delete', 'purchases.manage', 'purchases.approve',
+      
+      // Consignment permissions
+      'consignment.view', 'consignment.create', 'consignment.edit', 'consignment.delete', 'consignment.manage', 'consignment.approve',
+      'consignments.view', 'consignments.create', 'consignments.edit', 'consignments.delete', 'consignments.manage', 'consignments.approve',
+      
+      // Pullout permissions
+      'pullouts.view', 'pullouts.create', 'pullouts.edit', 'pullouts.delete', 'pullouts.manage', 'pullouts.approve',
+      
+      // Roles permissions
+      'roles.view', 'roles.create', 'roles.edit', 'roles.delete', 'roles.manage', 'roles.approve',
+      
+      // Notifications permissions
+      'notifications.view', 'notifications.create', 'notifications.edit', 'notifications.delete', 'notifications.manage', 'notifications.approve'
     ],
     Manager: [
+      // Staff permissions
       'staff.view', 'staff.create', 'staff.edit',
-      'inventory.view', 'inventory.adjust', 'inventory.create', 'inventory.edit',
-      'order.view', 'order.create', 'order.edit', 'order.void',
-      'menu.view', 'menu.create', 'menu.edit', 'menu.categories',
+      
+      // Inventory permissions
+      'inventory.view', 'inventory.create', 'inventory.edit', 'inventory.manage',
+      
+      // Items permissions
+      'items.view', 'items.create', 'items.edit', 'items.manage',
+      
+      // Sales permissions
+      'sales.view', 'sales.create', 'sales.edit',
+      
+      // Suppliers permissions
       'suppliers.view', 'suppliers.create', 'suppliers.edit',
+      
+      // Ingredients permissions
+      'ingredients.view', 'ingredients.create', 'ingredients.edit',
+      
+      // Purchase permissions
+      'purchase.view', 'purchase.create', 'purchase.edit',
+      'purchases.view', 'purchases.create', 'purchases.edit',
+      
+      // Consignment permissions
+      'consignment.view', 'consignment.create', 'consignment.edit',
       'consignments.view', 'consignments.create', 'consignments.edit',
+      
+      // Pullout permissions
       'pullouts.view', 'pullouts.create', 'pullouts.approve',
-      'reports.view', 'reports.export', 'reports.sales', 'reports.inventory',
-      'settings.view', 'settings.edit'
+      
+      // Notifications permissions
+      'notifications.view'
     ],
     Cashier: [
-      'order.view', 'order.create',
-      'menu.view',
+      // View permissions
+      'items.view',
       'inventory.view',
+      'sales.view', 'sales.create',
       'pullouts.view', 'pullouts.create'
+    ],
+    Supplier: [
+      // Limited permissions for supplier users
+      'inventory.view',
+      'suppliers.view', 'suppliers.manage',
+      'purchase.view',
+      'purchases.view',
+      'consignment.view',
+      'consignments.view'
     ]
   }), []);
 
@@ -66,7 +123,14 @@ export const usePermissions = () => {
     // Admin role has all permissions
     if (user.role === 'Admin') return true;
     
-    return userPermissions.includes(permission);
+    // Check for the exact permission
+    if (userPermissions.includes(permission)) return true;
+    
+    // Check if user has the 'manage' permission for this resource
+    const resourceName = permission.split('.')[0];
+    const managePermission = `${resourceName}.manage`;
+    
+    return userPermissions.includes(managePermission);
   };
 
   /**
@@ -90,10 +154,14 @@ export const usePermissions = () => {
   /**
    * Check if current user can access a specific resource for a given action
    * @param {string} resource - Resource name (staff, inventory, etc.)
-   * @param {string} action - Action to perform (view, create, edit, delete)
+   * @param {string} action - Action to perform (view, create, edit, delete, approve)
    * @returns {boolean} True if the user has permission
    */
   const can = (resource, action) => {
+    // Handle both singulars and plurals for resources that might have both forms
+    if (resource === 'purchases') resource = 'purchase';
+    if (resource === 'consignments') resource = 'consignment';
+    
     return hasPermission(`${resource}.${action}`);
   };
 
@@ -102,6 +170,8 @@ export const usePermissions = () => {
   const canCreate = (resource) => can(resource, 'create');
   const canEdit = (resource) => can(resource, 'edit');
   const canDelete = (resource) => can(resource, 'delete');
+  const canApprove = (resource) => can(resource, 'approve');
+  const canManage = (resource) => can(resource, 'manage');
 
   return {
     hasPermission,
@@ -112,6 +182,8 @@ export const usePermissions = () => {
     canCreate,
     canEdit,
     canDelete,
+    canApprove,
+    canManage,
     userPermissions
   };
 };

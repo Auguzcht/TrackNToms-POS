@@ -20,7 +20,10 @@ import { useAuth } from '../hooks/useAuth';
 import { useSuppliers } from '../hooks/useSuppliers';
 
 const SuppliersPage = () => {
+  // Adapt the page based on user role
   const { user } = useAuth();
+  const isSupplier = user?.role === 'Supplier';
+  
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -60,8 +63,14 @@ const SuppliersPage = () => {
 
   // Update active tab when URL changes
   useEffect(() => {
-    setActiveTab(getTabFromURL());
-  }, [location.search]);
+    const tab = getTabFromURL();
+    // Force supplier to only see purchase orders or consignments
+    if (isSupplier && tab === 'suppliers') {
+      navigate('/suppliers?tab=purchase-orders', { replace: true });
+    } else {
+      setActiveTab(tab);
+    }
+  }, [location.search, isSupplier, navigate]);
 
   // Set background color when the component mounts and restore when unmounting
   useEffect(() => {

@@ -640,7 +640,7 @@ const PulloutList = ({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-6 py-10 text-center">
+                    <td colSpan="8" className="px-6 py-10 text-center bg-white">
                       <div className="flex flex-col items-center justify-center">
                         <motion.div
                           initial={{ opacity: 0, scale: 0.8 }}

@@ -1405,6 +1405,130 @@ export const useSuppliers = () => {
     }
   }, [getPurchaseOrder]);
 
+  // Add supplier-specific functions to handle purchase orders
+
+  /**
+   * Get purchase orders for a specific supplier
+   * @param {number|string} supplierId - Supplier ID
+   * @returns {Array} Purchase orders list for this supplier
+   */
+  const fetchSupplierPurchaseOrders = useCallback(async (supplierId) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch only purchase orders related to this supplier
+      const { data, error: fetchError } = await supabase
+        .from('purchase')
+        .select(`
+          *,
+          suppliers:supplier_id (supplier_id, company_name)
+        `)
+        .eq('supplier_id', supplierId)
+        .order('purchase_date', { ascending: false });
+      
+      if (fetchError) throw fetchError;
+      
+      // Process the results similar to fetchPurchaseOrders but simplified
+      const purchasesWithDetails = await Promise.all(
+        data.map(async (purchase) => {
+          // Fetch staff info separately if needed (simplified)
+          const { data: items, error: itemsError } = await supabase
+            .from('purchase_details')
+            .select(`
+              *,
+              ingredients:ingredient_id (ingredient_id, name, unit)
+            `)
+            .eq('purchase_id', purchase.purchase_id);
+          
+          // Format items with ingredient details
+          const formattedItems = items ? items.map(item => ({
+            purchase_detail_id: item.purchase_detail_id,
+            ingredient_id: item.ingredient_id,
+            ingredient_name: item.ingredients?.name || 'Unknown Ingredient',
+            ingredient_unit: item.ingredients?.unit || 'unit',
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.subtotal,
+            product_expiration_date: item.product_expiration_date
+          })) : [];
+          
+          return {
+            ...purchase,
+            items: formattedItems,
+            supplier_name: purchase.suppliers?.company_name
+          };
+        })
+      );
+      
+      console.log('Supplier purchase orders fetched:', purchasesWithDetails);
+      setPurchaseOrders(purchasesWithDetails || []);
+      return purchasesWithDetails || [];
+    } catch (err) {
+      console.error('Error fetching supplier purchase orders:', err);
+      setError('Failed to fetch your purchase orders');
+      toast.error('Could not load your purchase orders');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Get consignments for a specific supplier
+   * @param {number|string} supplierId - Supplier ID
+   * @returns {Array} Consignments list for this supplier
+   */
+  const fetchSupplierConsignments = useCallback(async (supplierId) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch only consignments related to this supplier - FIXED TABLE NAME
+      const { data, error: fetchError } = await supabase
+        .from('consignment') // Changed from 'consignments' to 'consignment'
+        .select(`*`)
+        .eq('supplier_id', supplierId)
+        .order('date', { ascending: false });
+      
+      if (fetchError) throw fetchError;
+      
+      // For each consignment, also fetch its items - FIXED TABLE NAME
+      const consignmentsWithItems = await Promise.all(
+        data.map(async (consignment) => {
+          const { data: items, error: itemsError } = await supabase
+            .from('consignment_details') // Changed from 'consignment_items' to 'consignment_details'
+            .select(`
+              *,
+              items:item_id (
+                item_id,
+                item_name,
+                category
+              )
+            `)
+            .eq('consignment_id', consignment.consignment_id);
+        
+          return {
+            ...consignment,
+            items: items || [],
+            supplier_name: 'Your Company' // For supplier view, this is always their own company
+          };
+        })
+      );
+    
+      console.log('Supplier consignments fetched:', consignmentsWithItems);
+      setConsignments(consignmentsWithItems || []);
+      return consignmentsWithItems || [];
+    } catch (err) {
+      console.error('Error fetching supplier consignments:', err);
+      setError('Failed to fetch your consignments');
+      toast.error('Could not load your consignment data');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     suppliers,
     loading,
@@ -1434,7 +1558,11 @@ export const useSuppliers = () => {
     markPurchaseReceived,
     acceptPurchaseOrder,
     rejectPurchaseOrder,
-    approvePurchaseOrder
+    approvePurchaseOrder,
+
+    // Add these new supplier-specific functions
+    fetchSupplierPurchaseOrders,
+    fetchSupplierConsignments
   };
 };
 

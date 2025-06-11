@@ -62,33 +62,13 @@ Built with modern web technologies:
    # Update database credentials and other settings
    ```
 
-4. Start the API server:
-   ```bash
-   node src/server/index.js
-   ```
-
-5. Start the development server:
+4. Start the development server:
    ```bash
    npm run dev
    ```
 
-6. Access the application:
+5. Access the application:
    - Web Connection: http://localhost:5173
-   - API Connection: http://localhost:3000
-
-## 📝 Database Schema
-
-```mermaid
-erDiagram
-    ITEMS ||--o{ ITEM_INGREDIENTS : contains
-    INGREDIENTS ||--o{ ITEM_INGREDIENTS : used_in
-    ITEMS ||--o{ SALES_DETAIL : sold_as
-    SALES_HEADER ||--o{ SALES_DETAIL : contains
-    STAFF ||--o{ SALES_HEADER : processes
-    STAFF ||--o{ MANAGERS : can_be
-    SUPPLIERS ||--o{ CONSIGNMENTS : delivers
-    INGREDIENTS ||--o{ CONSIGNMENTS : received_as
-```
 
 ## 🔄 System Workflow
 
@@ -158,36 +138,12 @@ await inventory.updateStock(ingredientId, deliveredQuantity);
 
 ## 🛠️ Development
 
-### Project Structure
-```
-TrackNToms-POS/
-├── src/
-│   ├── components/
-│   │   ├── auth/
-│   │   ├── dashboard/
-│   │   ├── inventory/
-│   │   ├── pos/
-│   │   ├── reports/
-│   │   ├── staff/
-│   │   └── suppliers/
-│   ├── context/
-│   ├── hooks/
-│   ├── pages/
-│   ├── server/
-│   │   ├── routes/
-│   │   └── index.js
-│   └── services/
-├── public/
-└── configs/
-```
-
-### Available Scripts
+## 💭 Scripts
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
-- `node src/server/index.js` - Run API server
 
-## 🧪 Testing
+### Testing
 ```bash
 # Run all tests
 npm run test
@@ -216,15 +172,15 @@ npm run test:inventory
 |--------|--------|------------|
 | POS Terminal | ✅ Complete | 100% |
 | Inventory Management | ✅ Complete | 100% |
-| Supplier Management | ✅ Complete | 95% |
-| Staff Management | 🟡 In Progress | 80% |
-| Reporting | 🟡 In Progress | 75% |
-| Mobile Optimization | ⚪ Planned | 20% |
+| Supplier Management | ✅ Complete | 100% |
+| Staff Management | ✅ Complete | 100% |
+| Reporting | ✅ Complete | 100% |
+| Mobile Optimization | 🟡 In Progress | 20% |
 
 ## 👥 Team
-- **Joshua Famor** - Project Lead & Database Architect
+- **Joshua Famor** - Project Lead
 - **Alfred Nodado** - Full-Stack Developer and Systems Administrator
-- **Hanna Sato** - UI/UX Designer and Research Lead
+- **Hanna Sato** - UI/UX Designer
 
 ## 🙏 Acknowledgments
 - Tom N Toms Coffee Davao Management for business requirements
@@ -239,7 +195,7 @@ npm run test:inventory
 - **Development**: Vite, ESLint, Git
 
 <div align="center">
-  <p>Developed for CS107 - Information Management</p>
+  <p>Developed for course terminal requirements under CS107, CS152, IT104, CS158</p>
   <p>Mapúa Malayan Colleges Mindanao, Davao City</p>
   <p>© 2025 TrackNToms</p>
 </div>

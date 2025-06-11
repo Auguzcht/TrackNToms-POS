@@ -196,15 +196,27 @@ const ProductAssociationChart = ({ associationRules, onThresholdChange, onExport
             ctx.fillStyle = node.color;
             ctx.fill();
             
+            // Add a white border to make nodes stand out more
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
             // Draw node label if zoomed in or highlighted
             const label = node.name;
             if (globalScale >= 1 || node.highlighted) {
               const fontSize = node.highlighted ? 14 : 12;
+              
+              // Add text background for better visibility
+              const textWidth = ctx.measureText(label).width;
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+              ctx.fillRect(node.x - textWidth/2 - 2, node.y + size, textWidth + 4, fontSize + 2);
+              
+              // Draw text with dark color for better contrast
               ctx.font = `${fontSize}px Sans-Serif`;
-              ctx.fillStyle = node.highlighted ? '#000' : '#666';
+              ctx.fillStyle = '#333'; // Dark text instead of using node.highlighted
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText(label, node.x, node.y + size + fontSize);
+              ctx.fillText(label, node.x, node.y + size + fontSize/2 + 1);
             }
           }}
           onNodeClick={handleNodeClick}

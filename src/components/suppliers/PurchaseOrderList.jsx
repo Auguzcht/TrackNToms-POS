@@ -385,46 +385,50 @@ const PurchaseOrderList = ({
                 </div>
               </div>
             ) : filteredPurchaseOrders.length === 0 ? (
-              // Empty state - similar to SupplierList
-              <div className="text-center py-10">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ type: "spring", stiffness: 100, delay: 0.1 }}
-                  className="p-3 bg-[#FFF6F2] rounded-md border border-[#571C1F]/20 shadow-md mb-3 inline-flex"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                </motion.div>
-                {filters.search || filters.supplierId || filters.status ? (
-                  <>
-                    <p className="text-[#571C1F] font-medium">No purchase orders match your filters</p>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setFilters({ search: '', supplierId: '', status: '' })}
-                      className="mt-2 text-[#571C1F] hover:text-[#571C1F]/80 font-medium px-3 py-1 rounded-md border border-[#571C1F]/30 hover:border-[#571C1F]/50 transition-all"
-                    >
-                      Clear filters
-                    </motion.button>
-                  </>
-                ) : (
-                  <div className="text-center">
-                    <p className="text-[#571C1F] font-medium">No purchase orders found</p>
-                    {canManageSuppliers && (
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={onAdd}
-                        className="mt-2 text-[#571C1F] hover:text-[#571C1F]/80 font-medium px-3 py-1 rounded-md border border-[#571C1F]/30 hover:border-[#571C1F]/50 transition-all"
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-[#571C1F] text-white">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Order Date</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">PO Number</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Supplier</th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider">Items</th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider">Total</th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-white uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td colSpan="7" className="px-6 py-10 text-center">
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ type: "spring", stiffness: 100, delay: 0.1 }}
+                        className="p-3 bg-[#FFF6F2] rounded-md border border-[#571C1F]/20 shadow-md mb-3 inline-flex"
                       >
-                        Create Your First Purchase Order
-                      </motion.button>
-                    )}
-                  </div>
-                )}
-              </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      </motion.div>
+                      {filters.search || filters.supplierId || filters.status ? (
+                        <>
+                          <p className="text-[#571C1F] font-medium">No purchase orders match your filters</p>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setFilters({ search: '', supplierId: '', status: '' })}
+                            className="mt-2 text-[#571C1F] hover:text-[#571C1F]/80 font-medium px-3 py-1 rounded-md border border-[#571C1F]/30 hover:border-[#571C1F]/50 transition-all"
+                          >
+                            Clear filters
+                          </motion.button>
+                        </>
+                      ) : (
+                        <p className="text-[#571C1F] font-medium">No purchase orders found</p>
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             ) : (
               // Regular table - keep existing structure but with smoother animations
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">

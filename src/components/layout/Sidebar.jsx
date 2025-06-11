@@ -1,3 +1,5 @@
+// Add role-specific navigation items and access control
+
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,8 +15,8 @@ const Sidebar = ({ isOpen }) => {
   const [expandedMenu, setExpandedMenu] = useState(null);
   const [activeSubpage, setActiveSubpage] = useState(null);
 
-  // Define navigation items with required permissions
-  const navItems = [
+  // Define standard navigation items with required permissions
+  const standardNavItems = [
     { 
       name: 'Dashboard', 
       path: '/', 
@@ -41,12 +43,12 @@ const Sidebar = ({ isOpen }) => {
         },
         { 
           name: 'Menu Items', 
-          path: '/inventory?tab=menu-items', // Fixed path to match actual URL parameter
+          path: '/inventory?tab=menu-items',
           requiredPermission: 'inventory.view'
         },
         { 
           name: 'Pullouts', 
-          path: '/inventory?tab=pullouts', // Moved from suppliers to inventory
+          path: '/inventory?tab=pullouts',
           requiredPermission: 'pullouts.view'
         }
       ] 
@@ -72,7 +74,6 @@ const Sidebar = ({ isOpen }) => {
           path: '/suppliers?tab=consignments',
           requiredPermission: 'suppliers.view'
         }
-        // Removed Pullouts from here
       ] 
     },
     { 
@@ -115,14 +116,125 @@ const Sidebar = ({ isOpen }) => {
           requiredPermission: 'reports.financial'
         }
       ] 
+    }
+  ];
+
+  // Supplier-specific navigation
+  const supplierNavItems = [
+    { 
+      name: 'Dashboard', 
+      path: '/', 
+      icon: 'chart-bar', 
+      requiredPermission: 'dashboard.view',
+      exact: true 
     },
     { 
-      name: 'Settings', 
-      path: '/settings', 
-      icon: 'cog', 
-      requiredPermission: 'settings.view'
+      name: 'Purchase Orders', 
+      path: '/suppliers?tab=purchase-orders', 
+      icon: 'clipboard-check',
+      requiredPermission: 'suppliers.view', // Change to match the standard nav permissions
+      tabName: 'purchase-orders'
     },
+    { 
+      name: 'Consignments', 
+      path: '/suppliers?tab=consignments', 
+      icon: 'truck',
+      requiredPermission: 'suppliers.view', // Change to match the standard nav permissions
+      tabName: 'consignments'
+    }
   ];
+
+  // Cashier-specific navigation
+  const cashierNavItems = [
+    { 
+      name: 'Dashboard', 
+      path: '/', 
+      icon: 'chart-bar', 
+      requiredPermission: 'dashboard.view',
+      exact: true
+    },
+    { 
+      name: 'POS', 
+      path: '/pos', 
+      icon: 'shopping-cart', 
+      requiredPermission: 'sales.view',
+    },
+    {
+      name: 'Inventory', 
+      path: '/inventory', 
+      icon: 'clipboard-list', 
+      requiredPermission: 'inventory.view',
+    }
+  ];
+
+  // Inventory-specific navigation
+  const inventoryNavItems = [
+    { 
+      name: 'Dashboard', 
+      path: '/', 
+      icon: 'chart-bar', 
+      requiredPermission: 'dashboard.view',
+      exact: true
+    },
+    { 
+      name: 'Inventory', 
+      path: '/inventory', 
+      icon: 'clipboard-list', 
+      requiredPermission: 'inventory.view',
+      subpages: [
+        { 
+          name: 'Ingredients', 
+          path: '/inventory?tab=ingredients',
+          requiredPermission: 'inventory.view'
+        },
+        { 
+          name: 'Menu Items', 
+          path: '/inventory?tab=menu-items',
+          requiredPermission: 'inventory.view'
+        },
+        { 
+          name: 'Pullouts', 
+          path: '/inventory?tab=pullouts',
+          requiredPermission: 'pullouts.view'
+        }
+      ] 
+    },
+    { 
+      name: 'Suppliers', 
+      path: '/suppliers', 
+      icon: 'truck', 
+      requiredPermission: 'suppliers.view',
+      subpages: [
+        { 
+          name: 'Suppliers', 
+          path: '/suppliers?tab=suppliers',
+          requiredPermission: 'suppliers.view'
+        },
+        { 
+          name: 'Purchase Orders', 
+          path: '/suppliers?tab=purchase-orders',
+          requiredPermission: 'purchases.view'
+        }
+      ] 
+    }
+  ];
+
+  // Get the right navigation based on user role
+  const navItems = useMemo(() => {
+    if (!user) return [];
+    
+    // Return the appropriate navigation based on role
+    switch (user.role) {
+      case 'Supplier':
+        return supplierNavItems;
+      case 'Cashier':
+        return cashierNavItems;
+      case 'Inventory':
+        return inventoryNavItems;
+      default:
+        return standardNavItems;
+    }
+  }, [user]);
 
   // Filter nav items based on user permissions
   const filteredNavItems = useMemo(() => {
@@ -147,18 +259,20 @@ const Sidebar = ({ isOpen }) => {
         
         // If there are allowed subpages, include this item with only the allowed subpages
         if (allowedSubpages.length > 0) {
-          return {
+          item = {
             ...item,
             subpages: allowedSubpages
           };
+          return true;
         }
         
         // If no subpages are allowed but main item is allowed, include it without subpages
         if (hasMainPermission) {
-          return {
+          item = {
             ...item,
             subpages: undefined // Remove subpages
           };
+          return true;
         }
         
         // If neither main item nor subpages are allowed, exclude this item
@@ -168,7 +282,7 @@ const Sidebar = ({ isOpen }) => {
       // For items without subpages, just check the main permission
       return hasMainPermission;
     });
-  }, [user, permissionsLoading, hasPermission]);
+  }, [user, permissionsLoading, hasPermission, navItems]);
 
   // Update active subpage when location changes
   useEffect(() => {
@@ -199,10 +313,20 @@ const Sidebar = ({ isOpen }) => {
     if (item.exact) {
       return location.pathname === item.path;
     }
+    
+    if (item.tabName) {
+      // Special handling for supplier navigation with tabs
+      const currentTab = new URLSearchParams(location.search).get('tab');
+      return location.pathname.startsWith('/suppliers') && currentTab === item.tabName;
+    }
+    
     if (item.subpages) {
       return location.pathname.startsWith(item.path.split('?')[0]);
     }
-    return location.pathname === item.path;
+    
+    // For normal paths
+    const itemBasePath = item.path.split('?')[0];
+    return location.pathname === itemBasePath;
   };
 
   // Check if subpage is active
@@ -581,12 +705,13 @@ const Sidebar = ({ isOpen }) => {
                     ) : (
                       <NavLink
                         to={item.path}
-                        className={({ isActive }) => `
+                        className={`
                           flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200
-                          ${isActive 
+                          ${isMenuActive(item) 
                             ? 'bg-[#571C1F] text-white shadow-md shadow-[#571C1F]/20 hover:text-white' 
                             : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-[#571C1F]'}
                         `}
+                        end={item.exact}
                       >
                         <motion.span 
                           className="mr-3 flex items-center justify-center w-6 h-6"

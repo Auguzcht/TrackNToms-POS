@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Card from '../common/Card';
 
@@ -13,6 +13,19 @@ const ProductCatalog = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Format category names - similar to ItemForm's approach
+  const formattedCategories = useMemo(() => {
+    return categories.map(category => ({
+      ...category,
+      displayName: category.name
+        .replace(/_/g, ' ') // Replace underscores with spaces
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ')
+        .replace('&', '&')
+    }));
+  }, [categories]);
+  
   const filteredProducts = products.filter(product => {
     // Filter by selected category and search query
     const matchesCategory = !selectedCategory || product.category === selectedCategory;
@@ -26,6 +39,12 @@ const ProductCatalog = ({
   const isInStock = (product) => {
     const inventoryItem = inventory[product.id];
     return inventoryItem ? inventoryItem.available : true;
+  };
+  
+  // Helper function to format category display name
+  const formatCategoryName = (categoryId) => {
+    const category = formattedCategories.find(cat => cat.id === categoryId);
+    return category ? category.displayName : 'Uncategorized';
   };
 
   return (
@@ -52,7 +71,7 @@ const ProductCatalog = ({
         </div>
       </div>
 
-      {/* Categories section unchanged */}
+      {/* Categories section - updated to use formatted category names */}
       <div className="mb-4">
         <div className="bg-white rounded-md p-1 flex overflow-x-auto hide-scrollbar">
           <motion.div 
@@ -61,7 +80,7 @@ const ProductCatalog = ({
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            {categories.map((category, index) => (
+            {formattedCategories.map((category, index) => (
               <motion.button
                 key={category.id}
                 className={`px-3.5 py-1.5 rounded-md text-sm font-medium min-w-[80px] flex justify-center items-center ${
@@ -84,7 +103,7 @@ const ProductCatalog = ({
                   }}
                   transition={{ duration: 0.2 }}
                 >
-                  {category.name}
+                  {category.displayName}
                 </motion.span>
               </motion.button>
             ))}
@@ -205,7 +224,7 @@ const ProductCatalog = ({
                             <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
                           </svg>
                           <span className="ml-1 text-xs text-[#571C1F]/70">
-                            {product.category?.name || 'Coffee'}
+                            {formatCategoryName(product.category)}
                           </span>
                         </div>
                         

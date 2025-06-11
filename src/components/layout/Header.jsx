@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
+import supabase from '../../services/supabase';
 import { THEME_COLOR, SECONDARY_COLOR, APP_VERSION } from '../../services/constants';
 
 // Page title mapping
@@ -29,7 +30,7 @@ const pageTitles = {
   },
   '/reports': { 
     title: 'Reports', 
-    description: 'View sales and inventory analytics'
+    description: 'View sales, inventory, and financial analytics'
   },
   '/settings': { 
     title: 'Settings', 
@@ -45,6 +46,7 @@ const Header = ({ toggleSidebar, isSidebarOpen }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -138,40 +140,103 @@ const Header = ({ toggleSidebar, isSidebarOpen }) => {
   // Fetch notifications from Supabase
   useEffect(() => {
     // Only fetch if user is authenticated
-    if (!isAuthenticated || !user) return;
+    if (!isAuthenticated || !user?.user_id) return;
     
-    // Example notifications - in a real app, you'd fetch from your Supabase table
     const fetchNotifications = async () => {
+      setLoading(true);
       try {
-        // Placeholder for real API call
-        const mockNotifications = [
-          {
-            id: 1,
-            title: 'Low stock alert',
-            message: 'Milk is running low in inventory',
-            created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 mins ago
-            read: false,
-            type: 'alert'
-          },
-          {
-            id: 2,
-            title: 'New order received',
-            message: 'Order #1052 has been placed',
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-            read: false,
-            type: 'order'
-          }
-        ];
+        // Fetch real notifications from the database
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('notification_id, title, message, link, is_read, created_at')
+          .eq('user_id', user.user_id)
+          .order('created_at', { ascending: false })
+          .limit(20);  // Fetch most recent 20 notifications
         
-        setNotifications(mockNotifications);
-        setUnreadCount(mockNotifications.filter(n => !n.read).length);
+        if (error) throw error;
+        
+        // Transform data to add notification type for proper icon display
+        const transformedNotifications = data.map(notification => {
+          // Determine notification type based on title or message content
+          let type = 'info'; // Default type
+          
+          // Check title for common keywords
+          const lowerTitle = notification.title.toLowerCase();
+          if (lowerTitle.includes('alert') || lowerTitle.includes('low stock') || 
+              lowerTitle.includes('warning') || lowerTitle.includes('error')) {
+            type = 'alert';
+          } else if (lowerTitle.includes('order') || lowerTitle.includes('sale') || 
+                    lowerTitle.includes('transaction') || lowerTitle.includes('purchase')) {
+            type = 'order';
+          }
+          
+          return {
+            ...notification,
+            id: notification.notification_id,
+            read: notification.is_read,
+            type
+          };
+        });
+        
+        setNotifications(transformedNotifications);
+        setUnreadCount(transformedNotifications.filter(n => !n.is_read).length);
       } catch (error) {
         console.error('Error fetching notifications:', error);
+      } finally {
+        setLoading(false);
       }
     };
     
     fetchNotifications();
-  }, [isAuthenticated, user]);
+    
+    // Set up real-time subscription for new notifications
+    const notificationsSubscription = supabase
+      .channel('notifications-changes')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notifications',
+        filter: `user_id=eq.${user.user_id}`
+      }, (payload) => {
+        // Process new notification
+        const newNotification = payload.new;
+        
+        // Determine notification type
+        let type = 'info';
+        const lowerTitle = newNotification.title.toLowerCase();
+        if (lowerTitle.includes('alert') || lowerTitle.includes('low stock') || 
+            lowerTitle.includes('warning') || lowerTitle.includes('error')) {
+          type = 'alert';
+        } else if (lowerTitle.includes('order') || lowerTitle.includes('sale') || 
+                  lowerTitle.includes('transaction') || lowerTitle.includes('purchase')) {
+          type = 'order';
+        }
+        
+        const formattedNotification = {
+          ...newNotification,
+          id: newNotification.notification_id,
+          read: newNotification.is_read,
+          type
+        };
+        
+        // Add to the notifications state
+        setNotifications(prev => [formattedNotification, ...prev]);
+        setUnreadCount(prev => prev + 1);
+        
+        // Show a toast if notification panel is not open
+        if (!showNotifications) {
+          toast(newNotification.title, {
+            icon: type === 'alert' ? '⚠️' : type === 'order' ? '🛒' : 'ℹ️',
+          });
+        }
+      })
+      .subscribe();
+      
+    // Clean up subscription
+    return () => {
+      supabase.removeChannel(notificationsSubscription);
+    };
+  }, [isAuthenticated, user?.user_id, showNotifications]);
 
   // Toggle user menu
   const toggleUserMenu = () => {
@@ -183,6 +248,78 @@ const Header = ({ toggleSidebar, isSidebarOpen }) => {
   const toggleNotifications = () => {
     setShowNotifications(!showNotifications);
     if (showUserMenu) setShowUserMenu(false);
+  };
+  
+  // Mark notification as read
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('notification_id', notificationId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === notificationId 
+            ? {...notification, read: true, is_read: true} 
+            : notification
+        )
+      );
+      
+      // Update unread count
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+  
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    try {
+      // Get IDs of all unread notifications
+      const unreadIds = notifications
+        .filter(notification => !notification.read)
+        .map(notification => notification.id);
+      
+      if (unreadIds.length === 0) return;
+      
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .in('notification_id', unreadIds);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notification => ({...notification, read: true, is_read: true}))
+      );
+      
+      // Reset unread count
+      setUnreadCount(0);
+      
+      toast.success('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      toast.error('Failed to mark notifications as read');
+    }
+  };
+
+  // Handle notification click - navigate to link if provided and mark as read
+  const handleNotificationClick = async (notification) => {
+    // Mark as read if not already read
+    if (!notification.read) {
+      await markNotificationAsRead(notification.id);
+    }
+    
+    // Navigate to link if provided
+    if (notification.link) {
+      navigate(notification.link);
+      setShowNotifications(false);
+    }
   };
 
   // Handle logout with proper navigation
@@ -390,7 +527,12 @@ const Header = ({ toggleSidebar, isSidebarOpen }) => {
                     
                     {/* Notification list */}
                     <div className="max-h-80 overflow-y-auto">
-                      {notifications.length === 0 ? (
+                      {loading ? (
+                        <div className="p-4 text-center">
+                          <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#571C1F] border-t-transparent"></div>
+                          <p className="mt-2 text-sm text-gray-500">Loading notifications...</p>
+                        </div>
+                      ) : notifications.length === 0 ? (
                         <div className="p-4 text-center text-gray-500">
                           <p>No notifications</p>
                         </div>
@@ -398,7 +540,8 @@ const Header = ({ toggleSidebar, isSidebarOpen }) => {
                         notifications.map((notification) => (
                           <div 
                             key={notification.id}
-                            className={`px-4 py-3 border-b border-[#571C1F]/10 hover:bg-[#FFF6F2] transition-colors flex items-start space-x-3 ${
+                            onClick={() => handleNotificationClick(notification)}
+                            className={`px-4 py-3 border-b border-[#571C1F]/10 hover:bg-[#FFF6F2] transition-colors flex items-start space-x-3 cursor-pointer ${
                               notification.read ? 'opacity-75' : ''
                             }`}
                           >
@@ -425,9 +568,12 @@ const Header = ({ toggleSidebar, isSidebarOpen }) => {
                     </div>
                     
                     {/* Notifications footer */}
-                    {notifications.length > 0 && (
+                    {notifications.length > 0 && unreadCount > 0 && (
                       <div className="bg-white p-2 border-t border-[#571C1F]/10">
-                        <button className="text-sm text-center text-[#571C1F] hover:text-[#571C1F]/80 w-full py-1.5 rounded-md hover:bg-[#571C1F]/5 transition-colors">
+                        <button 
+                          onClick={markAllAsRead}
+                          className="text-sm text-center text-[#571C1F] hover:text-[#571C1F]/80 w-full py-1.5 rounded-md hover:bg-[#571C1F]/5 transition-colors"
+                        >
                           Mark all as read
                         </button>
                       </div>
@@ -499,7 +645,7 @@ const Header = ({ toggleSidebar, isSidebarOpen }) => {
                     
                     {/* Menu items */}
                     <div className="py-2">
-                      <button 
+                      {/* <button 
                         onClick={() => navigate('/profile')}
                         className="w-full text-left px-4 py-2.5 text-sm flex items-center space-x-3 bg-white hover:bg-[#571C1F]/5 transition-colors"
                       >
@@ -526,7 +672,7 @@ const Header = ({ toggleSidebar, isSidebarOpen }) => {
                         </button>
                       )}
                       
-                      <hr className="my-2 border-[#571C1F]/10" />
+                      <hr className="my-2 border-[#571C1F]/10" /> */}
                       
                       <button
                         onClick={handleLogout}
