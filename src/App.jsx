@@ -208,9 +208,13 @@ function MainApp() {
   );
 }
 
+// Modify the App component to handle basename correctly
 function App() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [showLoading, setShowLoading] = useState(true);
+
+  // Get the correct base URL for the current environment
+  const baseUrl = import.meta.env.MODE === 'production' ? '/' : '/TrackNToms-POS';
 
   // Start app initialization
   useEffect(() => {
@@ -265,9 +269,9 @@ function App() {
   };
 
   return (
-    <Router basename="/TrackNToms-POS">
+    <Router basename={baseUrl}>
       <AuthProvider>
-        <SalesProvider> {/* Add SalesProvider here */}
+        <SalesProvider>
           <AnimatePresence mode="wait">
             {showLoading ? (
               <LoadingScreen 
@@ -285,7 +289,7 @@ function App() {
                 className="w-full h-full"
               >
                 <MainApp />
-                <SupplierTabRedirect /> {/* Include the redirect component here */}
+                <SupplierTabRedirect />
               </motion.div>
             )}
           </AnimatePresence>
