@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react({
       // Include JSX in .js files
@@ -12,19 +12,17 @@ export default defineConfig({
     })
   ],
   
-  // Maintain the base path as requested
-  base: '/TrackNToms-POS/',
+  // Use different base paths: keep /TrackNToms-POS/ for dev, use / for production
+  base: mode === 'production' ? '/' : '/TrackNToms-POS/',
   
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    // This ensures the public directory is properly copied to the output directory
     publicDir: 'public',
-    emptyOutDir: true, // Clear the output directory before each build
+    emptyOutDir: true,
     
     rollupOptions: {
       output: {
-        // Customize asset file names
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.');
           const extType = info[info.length - 1];
@@ -37,7 +35,6 @@ export default defineConfig({
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
-        // Add manualChunks to separate vendor code
         manualChunks: {
           'vendor': ['react', 'react-dom', 'react-router-dom'],
           'mui': ['@mui/material', '@emotion/react', '@emotion/styled'],
@@ -45,8 +42,7 @@ export default defineConfig({
         }
       },
     },
-    // Add asset handling
-    assetsInlineLimit: 4096, // 4kb - files smaller than this will be inlined as base64 
+    assetsInlineLimit: 4096,
   },
   
   server: {
@@ -68,13 +64,11 @@ export default defineConfig({
       '@services': path.resolve(__dirname, './src/services'),
       '@utils': path.resolve(__dirname, './src/utils'),
       '@context': path.resolve(__dirname, './src/context'),
-      // Add a public alias for easier access to public assets
       '@public': path.resolve(__dirname, './public')
     },
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
   },
   
-  // Add esbuild configuration to properly handle JSX in .js files
   esbuild: {
     loader: 'jsx',
     include: /src\/.*\.jsx?$/,
@@ -82,7 +76,6 @@ export default defineConfig({
     jsx: 'automatic'
   },
   
-  // Optimizations
   optimizeDeps: {
     include: [
       'react',
@@ -94,6 +87,4 @@ export default defineConfig({
       '@supabase/supabase-js'
     ]
   }
-  
-  // REMOVED: The experimental renderBuiltUrl that was causing the error
-})
+}))
