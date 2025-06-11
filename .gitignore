@@ -1,11 +1,12 @@
 node_modules# Node.js
 node_modules/
+Schema/
 
 # Build output
 /dist
 /build
 /.vite
-/public
+
 
 # IDEs and editors
 .vscode/
