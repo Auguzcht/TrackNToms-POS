@@ -228,8 +228,25 @@ export const AuthProvider = ({ children }) => {
       console.log('Login successful for:', email);
       setConnectionStatus('connected');
       
-      // onAuthStateChange will handle the rest
-      return { success: true };
+      // Set user and session immediately to trigger redirect
+      setSession(data.session);
+      
+      // Fetch user profile immediately instead of waiting for auth state change
+      if (data.user) {
+        try {
+          await fetchUserProfile(data.user);
+        } catch (profileError) {
+          console.error('Error fetching profile after login:', profileError);
+        }
+      }
+      
+      setLoading(false);
+      
+      // Return success so the login form can handle UI updates
+      return { 
+        success: true,
+        redirectTo: '/' // Include a redirect target
+      };
     } catch (error) {
       console.error('Login error:', error);
       return {

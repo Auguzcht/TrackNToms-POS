@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { useNavigate, useLocation } from 'react-router-dom'; // Add this import
 import Button from '../common/Button';
 import { useAuth } from '../../hooks/useAuth';
 
 const LoginForm = () => {
   const { login } = useAuth();
+  const navigate = useNavigate(); // Add this
+  const location = useLocation(); // Add this
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -21,11 +24,18 @@ const LoginForm = () => {
     try {
       // Pass remember state to login function
       const result = await login(email, password, remember);
+      
       if (!result.success) {
         setError(result.error);
         toast.error(result.error || 'Login failed');
       } else {
         toast.success('Login successful!');
+        
+        // Handle redirect after successful login
+        const from = location.state?.from?.pathname || '/';
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 500); // Small delay to show the success message
       }
     } catch (err) {
       console.error('Form submission error:', err);
