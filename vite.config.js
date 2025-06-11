@@ -40,7 +40,7 @@ export default defineConfig({
         // Add manualChunks to separate vendor code
         manualChunks: {
           'vendor': ['react', 'react-dom', 'react-router-dom'],
-          'firebase': ['firebase/app', 'firebase/firestore', 'firebase/storage', 'firebase/auth'],
+          'mui': ['@mui/material', '@emotion/react', '@emotion/styled'],
           'supabase': ['@supabase/supabase-js']
         }
       },
@@ -91,21 +91,9 @@ export default defineConfig({
       '@mui/material',
       '@emotion/react',
       '@emotion/styled',
-      '@supabase/supabase-js',
-      'firebase/app',
-      'firebase/firestore',
-      'firebase/storage'
+      '@supabase/supabase-js'
     ]
-  },
-  
-  // Add proper handling for public path
-  experimental: {
-    renderBuiltUrl(filename, { hostType }) {
-      // For assets in the public folder, prepend the base path
-      if (hostType === 'html' || hostType === 'js') {
-        return `${import.meta.env.BASE_URL}${filename}`;
-      }
-      return filename;
-    }
   }
+  
+  // REMOVED: The experimental renderBuiltUrl that was causing the error
 })

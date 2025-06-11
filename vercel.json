@@ -1,3 +1,29 @@
 {
-  "installCommand": "npm install --legacy-peer-deps"
+  "installCommand": "npm install --legacy-peer-deps",
+  "buildCommand": "npm run build",
+  "rewrites": [
+    {
+      "source": "/TrackNToms-POS/(.*)",
+      "destination": "/TrackNToms-POS/$1"
+    },
+    {
+      "source": "/TrackNToms-POS",
+      "destination": "/TrackNToms-POS/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/TrackNToms-POS/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/TrackNToms-POS/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
 }
