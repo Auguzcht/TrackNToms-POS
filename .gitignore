@@ -5,6 +5,7 @@ node_modules/
 /dist
 /build
 /.vite
+/public
 
 # IDEs and editors
 .vscode/
