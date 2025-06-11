@@ -12,15 +12,19 @@ export default defineConfig({
     })
   ],
   
+  // Maintain the base path as requested
   base: '/TrackNToms-POS/',
   
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    // This ensures the public directory is properly copied to the output directory
     publicDir: 'public',
+    emptyOutDir: true, // Clear the output directory before each build
     
     rollupOptions: {
       output: {
+        // Customize asset file names
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.');
           const extType = info[info.length - 1];
@@ -33,8 +37,16 @@ export default defineConfig({
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
+        // Add manualChunks to separate vendor code
+        manualChunks: {
+          'vendor': ['react', 'react-dom', 'react-router-dom'],
+          'firebase': ['firebase/app', 'firebase/firestore', 'firebase/storage', 'firebase/auth'],
+          'supabase': ['@supabase/supabase-js']
+        }
       },
     },
+    // Add asset handling
+    assetsInlineLimit: 4096, // 4kb - files smaller than this will be inlined as base64 
   },
   
   server: {
@@ -55,7 +67,9 @@ export default defineConfig({
       '@hooks': path.resolve(__dirname, './src/hooks'),
       '@services': path.resolve(__dirname, './src/services'),
       '@utils': path.resolve(__dirname, './src/utils'),
-      '@context': path.resolve(__dirname, './src/context')
+      '@context': path.resolve(__dirname, './src/context'),
+      // Add a public alias for easier access to public assets
+      '@public': path.resolve(__dirname, './public')
     },
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
   },
@@ -76,7 +90,22 @@ export default defineConfig({
       'react-router-dom',
       '@mui/material',
       '@emotion/react',
-      '@emotion/styled'
+      '@emotion/styled',
+      '@supabase/supabase-js',
+      'firebase/app',
+      'firebase/firestore',
+      'firebase/storage'
     ]
+  },
+  
+  // Add proper handling for public path
+  experimental: {
+    renderBuiltUrl(filename, { hostType }) {
+      // For assets in the public folder, prepend the base path
+      if (hostType === 'html' || hostType === 'js') {
+        return `${import.meta.env.BASE_URL}${filename}`;
+      }
+      return filename;
+    }
   }
 })
