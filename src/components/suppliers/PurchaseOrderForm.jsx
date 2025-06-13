@@ -658,9 +658,10 @@ const PurchaseOrderForm = ({
                       type="text"
                       id={`unit_${index}`}
                       value={item.unit}
+                      onChange={e => handleChangeItem(index, 'unit', e.target.value)}
                       className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-[#571C1F] focus:border-[#571C1F] border-gray-300"
-                      disabled={true}
-                      placeholder="Auto-filled"
+                      disabled={loading || (item.ingredient_id && ingredients.some(ing => ing.ingredient_id.toString() === item.ingredient_id))}
+                      placeholder={item.ingredient_id ? "Auto-filled" : "Enter unit (e.g. kg, l, pcs)"}
                     />
                   </div>
                   
