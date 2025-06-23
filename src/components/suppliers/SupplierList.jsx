@@ -452,7 +452,7 @@ const SupplierList = ({
         </motion.div>
       )}
 
-      {/* Supplier Details Modal */}
+      {/* Supplier Details Modal - Updated with SupplierForm styling */}
       <Modal
         isOpen={showDetailsModal}
         onClose={() => setShowDetailsModal(false)}
@@ -466,14 +466,13 @@ const SupplierList = ({
                   className="h-8 w-8 object-cover"
                 />
               </div>
-              <span className="text-white">
+              <span>
                 {selectedSupplier?.supplier_name || selectedSupplier?.company_name || "Supplier Details"}
               </span>
             </div>
           )
         }
         size="3xl"
-        variant="primary"
         footer={
           <>
             <Button
@@ -489,7 +488,7 @@ const SupplierList = ({
                   setShowDetailsModal(false);
                   onEdit(selectedSupplier?.id || selectedSupplier?.supplier_id);
                 }}
-                className="inline-flex items-center" // Changed from "flex items-center space-x-2" to "inline-flex items-center"
+                className="inline-flex items-center"
               >
                 Edit Supplier
               </Button>
@@ -498,134 +497,152 @@ const SupplierList = ({
         }
       >
         {selectedSupplier && (
-          <div className="space-y-8">
-            {/* Basic Information - Added rounded-lg for subtle borders */}
-            <div className="bg-[#571C1F]/5 p-5 rounded-lg border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4 pb-2 border-b border-white/20 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Basic Information
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="col-span-1 flex flex-col items-center justify-center">
-                  <div className="w-32 h-32 rounded-full border border-white/20 overflow-hidden mb-3">
-                    <ImageWithFallback 
-                      src={selectedSupplier.logo}
-                      alt={selectedSupplier.supplier_name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  {/* Improved status badge with higher contrast */}
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                    (selectedSupplier.is_active === 1 || selectedSupplier.is_active === true)
-                      ? 'bg-[#003B25]/20 border border-[#003B25]/40 text-[#25D366]' // Brighter green text
-                      : 'bg-[#571C1F]/20 border border-[#571C1F]/40 text-[#FF6B6B]' // Brighter red text
-                  }`}>
-                    <span className={`w-2.5 h-2.5 ${(selectedSupplier.is_active === 1 || selectedSupplier.is_active === true) 
-                      ? 'bg-[#25D366]' 
-                      : 'bg-[#FF6B6B]'} rounded-full mr-2`}></span>
-                    {(selectedSupplier.is_active === 1 || selectedSupplier.is_active === true) ? 'Active' : 'Inactive'}
-                  </span>
+          <div className="space-y-6">
+            {/* Info banner from SupplierForm */}
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded-r-md">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
                 </div>
-                
-                <div className="col-span-2 grid grid-cols-2 gap-x-6 gap-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-white mb-1">Supplier Name</p>
-                    <p className="text-base text-white/90">{selectedSupplier.company_name || selectedSupplier.supplier_name || '—'}</p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm font-medium text-white mb-1">Contact Person</p>
-                    <p className="text-base text-white/90">{selectedSupplier.contact_person || '—'}</p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm font-medium text-white mb-1">Email</p>
-                    {selectedSupplier.supplier_email || selectedSupplier.contact_email ? (
-                      <a href={`mailto:${selectedSupplier.supplier_email || selectedSupplier.contact_email}`} className="text-[#FF9F81] hover:underline">
-                        {selectedSupplier.supplier_email || selectedSupplier.contact_email}
-                      </a>
-                    ) : <p className="text-base text-white/90">—</p>}
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm font-medium text-white mb-1">Phone</p>
-                    {selectedSupplier.supplier_contact || selectedSupplier.contact_phone ? (
-                      <a href={`tel:${selectedSupplier.supplier_contact || selectedSupplier.contact_phone}`} className="text-[#FF9F81] hover:underline">
-                        {selectedSupplier.supplier_contact || selectedSupplier.contact_phone}
-                      </a>
-                    ) : <p className="text-base text-white/90">—</p>}
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm font-medium text-white mb-1">Website</p>
-                    {selectedSupplier.website ? (
-                      <a 
-                        href={selectedSupplier.website.startsWith('http') ? selectedSupplier.website : `https://${selectedSupplier.website}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-[#FF9F81] hover:underline"
-                      >
-                        {selectedSupplier.website}
-                      </a>
-                    ) : <p className="text-base text-white/90">—</p>}
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm font-medium text-white mb-1">Payment Terms</p>
-                    <p className="text-base text-white/90">{selectedSupplier.payment_terms || '—'}</p>
-                  </div>
+                <div className="ml-3">
+                  <p className="text-sm text-blue-700">
+                    View supplier details including contact information and payment terms
+                  </p>
                 </div>
               </div>
             </div>
             
-            {/* Address Information - Added rounded-lg for subtle borders */}
-            <div className="bg-[#571C1F]/5 p-5 rounded-lg border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4 pb-2 border-b border-white/20 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
+              {/* Company Logo Section */}
+              <div className="md:col-span-1 h-full">
+                <div className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm h-full flex flex-col">
+                  <h3 className="text-lg font-medium text-[#571C1F] mb-4">
+                    Company Logo
+                  </h3>
+                  
+                  <div className="flex-grow flex flex-col items-center justify-center">
+                    <div className="w-40 h-40 rounded-lg border border-[#571C1F]/20 overflow-hidden mb-4">
+                      <ImageWithFallback 
+                        src={selectedSupplier.logo}
+                        alt={selectedSupplier.supplier_name || selectedSupplier.company_name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      (selectedSupplier.is_active === 1 || selectedSupplier.is_active === true)
+                        ? 'bg-[#003B25]/10 border border-[#003B25]/20 text-[#003B25]' 
+                        : 'bg-[#571C1F]/10 border border-[#571C1F]/20 text-[#571C1F]'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 ${(selectedSupplier.is_active === 1 || selectedSupplier.is_active === true) ? 'bg-[#003B25]' : 'bg-[#571C1F]'} rounded-full mr-1`}></span>
+                      {(selectedSupplier.is_active === 1 || selectedSupplier.is_active === true) ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Supplier Basic Information */}
+              <div className="md:col-span-2 h-full">
+                <div className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm h-full">
+                  <h3 className="text-lg font-medium text-[#571C1F] mb-4">
+                    Basic Information
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">Supplier Name</p>
+                      <p className="text-sm font-medium text-[#571C1F]">{selectedSupplier.company_name || selectedSupplier.supplier_name || '—'}</p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">Contact Person</p>
+                      <p className="text-sm font-medium text-gray-800">{selectedSupplier.contact_person || '—'}</p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">Email</p>
+                      {selectedSupplier.supplier_email || selectedSupplier.contact_email ? (
+                        <a href={`mailto:${selectedSupplier.supplier_email || selectedSupplier.contact_email}`} className="text-sm font-medium text-blue-600 hover:underline">
+                          {selectedSupplier.supplier_email || selectedSupplier.contact_email}
+                        </a>
+                      ) : <p className="text-sm font-medium text-gray-800">—</p>}
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">Phone</p>
+                      {selectedSupplier.supplier_contact || selectedSupplier.contact_phone ? (
+                        <a href={`tel:${selectedSupplier.supplier_contact || selectedSupplier.contact_phone}`} className="text-sm font-medium text-blue-600 hover:underline">
+                          {selectedSupplier.supplier_contact || selectedSupplier.contact_phone}
+                        </a>
+                      ) : <p className="text-sm font-medium text-gray-800">—</p>}
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">Website</p>
+                      {selectedSupplier.website ? (
+                        <a 
+                          href={selectedSupplier.website.startsWith('http') ? selectedSupplier.website : `https://${selectedSupplier.website}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-blue-600 hover:underline"
+                        >
+                          {selectedSupplier.website}
+                        </a>
+                      ) : <p className="text-sm font-medium text-gray-800">—</p>}
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">Payment Terms</p>
+                      <p className="text-sm font-medium text-gray-800">{selectedSupplier.payment_terms || '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Address Information */}
+            <div className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm">
+              <h3 className="text-lg font-medium text-[#571C1F] mb-4">
                 Address Information
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="col-span-3">
-                  <p className="text-sm font-medium text-white mb-1">Street Address</p>
-                  <p className="text-base text-white/90">{selectedSupplier.address || '—'}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="sm:col-span-2">
+                  <p className="text-sm font-medium text-gray-500 mb-1">Street Address</p>
+                  <p className="text-sm font-medium text-gray-800">{selectedSupplier.address || '—'}</p>
                 </div>
                 
                 <div>
-                  <p className="text-sm font-medium text-white mb-1">City</p>
-                  <p className="text-base text-white/90">{selectedSupplier.city || '—'}</p>
+                  <p className="text-sm font-medium text-gray-500 mb-1">City</p>
+                  <p className="text-sm font-medium text-gray-800">{selectedSupplier.city || '—'}</p>
                 </div>
                 
                 <div>
-                  <p className="text-sm font-medium text-white mb-1">State/Province</p>
-                  <p className="text-base text-white/90">{selectedSupplier.state || '—'}</p>
+                  <p className="text-sm font-medium text-gray-500 mb-1">State/Province</p>
+                  <p className="text-sm font-medium text-gray-800">{selectedSupplier.state || '—'}</p>
                 </div>
                 
                 <div>
-                  <p className="text-sm font-medium text-white mb-1">Postal Code</p>
-                  <p className="text-base text-white/90">{selectedSupplier.postal_code || selectedSupplier.postalCode || '—'}</p>
+                  <p className="text-sm font-medium text-gray-500 mb-1">Postal Code</p>
+                  <p className="text-sm font-medium text-gray-800">{selectedSupplier.postal_code || selectedSupplier.postalCode || '—'}</p>
                 </div>
                 
-                <div className="col-span-3">
-                  <p className="text-sm font-medium text-white mb-1">Country</p>
-                  <p className="text-base text-white/90">{selectedSupplier.country || '—'}</p>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 mb-1">Country</p>
+                  <p className="text-sm font-medium text-gray-800">{selectedSupplier.country || '—'}</p>
                 </div>
                 
                 {(selectedSupplier.address || selectedSupplier.city) && (
-                  <div className="col-span-3">
+                  <div className="sm:col-span-2">
                     <a 
                       href={`https://maps.google.com/?q=${encodeURIComponent(
                         `${selectedSupplier.address || ''}, ${selectedSupplier.city || ''}, ${selectedSupplier.state || ''} ${selectedSupplier.postal_code || selectedSupplier.postalCode || ''}, ${selectedSupplier.country || ''}`
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center text-sm text-[#FF9F81] hover:underline mt-2"
+                      className="inline-flex items-center text-sm text-blue-600 hover:underline mt-2"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -637,31 +654,28 @@ const SupplierList = ({
               </div>
             </div>
             
-            {/* Staff Connection - Added rounded-lg for subtle borders */}
+            {/* Staff Connection */}
             {selectedSupplier.user_id && (
-              <div className="bg-[#571C1F]/5 p-5 rounded-lg border border-white/10">
-                <h3 className="text-lg font-semibold text-white mb-4 pb-2 border-b border-white/20 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
+              <div className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm">
+                <h3 className="text-lg font-medium text-[#571C1F] mb-4">
                   Connected Staff Account
                 </h3>
                 
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 h-12 w-12 bg-blue-600/30 rounded-full flex items-center justify-center mr-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </div>
                   
                   <div>
-                    <p className="font-medium text-lg text-white">
+                    <p className="font-medium text-gray-800">
                       {selectedSupplier.connected_staff || "Staff Account Connected"}
                     </p>
                     {selectedSupplier.staff && selectedSupplier.staff.email && (
-                      <p className="text-blue-300">{selectedSupplier.staff.email}</p>
+                      <p className="text-blue-600">{selectedSupplier.staff.email}</p>
                     )}
-                    <p className="text-sm mt-1 text-white/80">
+                    <p className="text-sm mt-1 text-gray-500">
                       This supplier's inventory can be managed through their staff account login
                     </p>
                   </div>
@@ -669,24 +683,21 @@ const SupplierList = ({
               </div>
             )}
             
-            {/* Notes - Added rounded-lg for subtle borders */}
+            {/* Notes */}
             {selectedSupplier.notes && (
-              <div className="bg-[#571C1F]/5 p-5 rounded-lg border border-white/10">
-                <h3 className="text-lg font-semibold text-white mb-4 pb-2 border-b border-white/20 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+              <div className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm">
+                <h3 className="text-lg font-medium text-[#571C1F] mb-4">
                   Notes
                 </h3>
                 
-                <div className="whitespace-pre-line text-white/90">
+                <div className="bg-gray-50 p-4 rounded-md border border-gray-200 whitespace-pre-line text-gray-800">
                   {selectedSupplier.notes}
                 </div>
               </div>
             )}
             
-            {/* Footer info - Removed section divider, using just a subtle line */}
-            <div className="flex justify-between text-xs text-white/60 pt-4 border-t border-white/10">
+            {/* Footer info */}
+            <div className="flex justify-between text-xs text-gray-500 pt-4 border-t border-gray-200">
               <div>
                 {selectedSupplier.supplier_id && (
                   <span>ID: {selectedSupplier.supplier_id}</span>

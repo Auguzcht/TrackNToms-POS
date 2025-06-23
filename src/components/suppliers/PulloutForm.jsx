@@ -204,16 +204,18 @@ const PulloutForm = ({ pulloutId = null, ingredients = [], onSave = () => {}, on
         });
       } else {
         result = await createPullout(pulloutData);
-        // Refresh pullout data after creation
-        await fetchPullouts();
+
         Swal.fire({
           icon: 'success',
           title: 'Success',
-          text: 'Pullout request submitted successfully'
+          text: 'Pullout request submitted successfully',
+          timer: 1500,
+          showConfirmBuilder: false
+        }).then(() => {
+          // Call onSave after the alert is closed
+          onSave(result);
         });
       }
-      
-      onSave(result);
     } catch (error) {
       console.error('Error saving pullout:', error);
       Swal.fire({

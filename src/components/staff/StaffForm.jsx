@@ -4,11 +4,12 @@ import * as Yup from 'yup';
 import Button from '../common/Button';
 import { toast } from 'react-hot-toast';
 import { useStaff } from '../../hooks/useStaff';
-import { useSuppliers } from '../../hooks/useSuppliers'; // Import useSuppliers
+import { useSuppliers } from '../../hooks/useSuppliers';
 import FileUpload from '../common/FileUpload';
 import ImageWithFallback from '../common/ImageWithFallback';
+import { motion } from 'framer-motion'; // Import motion from framer-motion
 
-// 1. Update the validation schema to make username optional
+// Validation schema remains the same
 const staffSchema = Yup.object({
   first_name: Yup.string()
     .required('First name is required')
@@ -51,7 +52,7 @@ const staffSchema = Yup.object({
 
 const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, readOnly = false }) => {
   const { roles, fetchRoles, fetchStaffById, createStaff, updateStaff, loading } = useStaff();
-  const { suppliers, fetchSuppliers } = useSuppliers(); // Add this line
+  const { suppliers, fetchSuppliers } = useSuppliers();
   const [staffData, setStaffData] = useState(null);
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -173,32 +174,29 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
     toast.success('Profile image removed');
   };
 
+  // Loading state with the new PulloutForm style
   if (loadingStaff) {
     return (
-      <div className="animate-pulse p-6">
-        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-8"></div>
-        <div className="w-32 h-32 rounded-full bg-gray-200 dark:bg-gray-700 mx-auto mb-8"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="space-y-2">
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            </div>
-          ))}
-        </div>
+      <div className="flex items-center justify-center py-8">
+        <svg className="animate-spin h-8 w-8 text-[#571C1F]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span className="ml-3 text-[#571C1F] font-medium">Loading staff details...</span>
       </div>
     );
   }
-
+  
+  // Error state with the new PulloutForm style
   if (errorMessage) {
     return (
-      <div className="p-6">
-        <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/30 rounded-lg">
+      <div className="w-full">
+        <div className="text-center py-8">
           <svg className="mx-auto h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Error</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{errorMessage}</p>
+          <h3 className="mt-2 text-lg font-medium text-gray-900">Error</h3>
+          <p className="mt-1 text-sm text-gray-500">{errorMessage}</p>
           <div className="mt-6">
             <Button onClick={onCancel}>Go Back</Button>
           </div>
@@ -305,381 +303,410 @@ const StaffForm = ({ staffId = null, onSave = () => {}, onCancel = () => {}, rea
     </div>
   );
 
+  // Update the main return statement to apply conditional styling based on readOnly prop
   return (
-    <div className="p-0">
-      <h2 className="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">
-        {getFormTitle()}
-      </h2>
-      
-      <form onSubmit={formik.handleSubmit} className="space-y-6">
-        {/* VIEW MODE: Two-column layout with profile image on the left */}
-        {readOnly ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Profile Image Column */}
-            <div className="space-y-4 flex flex-col items-center lg:items-start">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                Profile Picture
-              </h3>
-              
-              <div className="w-full max-w-xs flex justify-center">
-                {!(profileImageUrl || formik.values.profile_image) ? (
-                  <div className="w-36 h-36 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center overflow-hidden border border-gray-200 dark:border-gray-700">
-                    <ImageWithFallback 
-                      alt="Profile placeholder" 
-                      className="w-full h-full object-cover"
+    <div className="max-w-4xl mx-auto">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        {/* Only show the info banner in edit mode */}
+        {!readOnly && (
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-r-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-blue-700">
+                  {isNewStaff 
+                    ? "Create a new staff account with appropriate role and access level" 
+                    : "Update staff member information and adjust their role or system access"
+                  }
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={formik.handleSubmit} className={`space-y-${readOnly ? '4' : '6'}`}>
+          {/* Profile Information Section */}
+          <motion.div
+            className={`bg-white rounded-lg border border-[#571C1F]/10 ${readOnly ? 'p-4' : 'p-6'} shadow-sm`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <h3 className={`${readOnly ? 'text-base' : 'text-lg'} font-medium text-[#571C1F] ${readOnly ? 'mb-3' : 'mb-4'}`}>
+              Personal Information
+            </h3>
+
+            <div className={`grid grid-cols-1 md:grid-cols-${readOnly ? '4' : '3'} gap-${readOnly ? '4' : '6'}`}>
+              {/* Profile Image */}
+              <div className={`flex flex-col items-center ${readOnly ? 'md:border-r md:border-[#571C1F]/10 md:pr-4' : 'md:border-r md:border-[#571C1F]/10 md:pr-6'}`}>
+                <div className={`${readOnly ? 'w-24 h-24' : 'w-full max-w-xs mb-2'}`}>
+                  {readOnly ? (
+                    <div className="h-24 w-24 rounded-full overflow-hidden border border-[#571C1F]/10">
+                      <ImageWithFallback
+                        src={profileImageUrl || formik.values.profile_image}
+                        alt={`${formik.values.first_name} ${formik.values.last_name}`}
+                        className="h-24 w-24 object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <FileUpload
+                      category="staff"
+                      onUploadComplete={handleImageUploadComplete}
+                      onUploadError={handleImageUploadError}
+                      onDeleteComplete={handleImageDelete}
+                      accept="image/jpeg,image/png,image/gif"
+                      maxSize={2}
+                      initialPreview={profileImageUrl || formik.values.profile_image}
+                      previewClass="w-32 h-32 object-cover rounded-full"
+                      previewContainerClass="border border-gray-200 dark:border-gray-700 rounded-full overflow-hidden"
+                      alt={`${formik.values.first_name} ${formik.values.last_name}`}
+                      displayMode={readOnly}
+                      label={readOnly ? "" : "Change Photo"}
                     />
-                  </div>
-                ) : (
-                  <FileUpload
-                    category="staff"
-                    onUploadComplete={handleImageUploadComplete}
-                    onUploadError={handleImageUploadError}
-                    onDeleteComplete={handleImageDelete}
-                    accept="image/jpeg,image/png,image/gif"
-                    maxSize={2} // 2MB max
-                    initialPreview={profileImageUrl || formik.values.profile_image}
-                    previewClass="w-36 h-36 object-cover rounded-full"
-                    previewContainerClass="border border-gray-200 dark:border-gray-700 rounded-full overflow-hidden"
-                    alt={`${formik.values.first_name} ${formik.values.last_name}`}
-                    displayMode={true}
-                    label=""
-                  />
+                  )}
+                </div>
+                {!readOnly && (
+                  <p className="text-xs text-gray-500 text-center mt-2">
+                    Upload a professional profile photo.<br />
+                    Recommended size: 400x400 pixels.
+                  </p>
                 )}
               </div>
 
-              {/* Role badge in view mode on mobile */}
-              <div className="lg:hidden mt-4 flex flex-col items-center">
-                <span className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Role</span>
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded-full text-sm font-medium">
-                  {roles.find(r => r.id == formik.values.role_id)?.name || 'Unknown Role'}
-                </span>
-              </div>
-            </div>
-            
-            {/* Form Fields Column - spans 2 columns on large screens for view mode */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Basic Information Section */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Basic Information
-                </h3>
-                
-                {/* Continue with existing view mode layout for rest of fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-6">
-                  {/* Name row */}
-                  <FormField label="First Name" name="first_name" required={true}>
-                    <InputField name="first_name" />
-                  </FormField>
-                  
-                  <FormField label="Last Name" name="last_name" required={true}>
-                    <InputField name="last_name" />
-                  </FormField>
-                  
-                  {/* Contact row */}
-                  <FormField label="Email Address" name="email" required={true}>
-                    <InputField 
-                      name="email" 
-                      icon={
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                      }
-                    />
-                  </FormField>
-                  
-                  <FormField label="Phone Number" name="phone" required={true}>
-                    <InputField 
-                      name="phone" 
-                      icon={
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                      }
-                    />
-                  </FormField>
-                  
-                  {/* Role and Status Row */}
-                  <FormField label="Role" name="role_id" required={true}>
-                    <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700 rounded-md">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                        {roles.find(r => r.id == formik.values.role_id)?.name || 'Unknown Role'}
-                      </span>
+              {/* Basic Information */}
+              <div className={`md:col-span-${readOnly ? '3' : '2'} space-y-${readOnly ? '2' : '4'}`}>
+                {readOnly ? (
+                  // Read-only compact display
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500">Full Name</p>
+                      <p className="font-medium text-[#571C1F]">{formik.values.first_name} {formik.values.last_name}</p>
                     </div>
-                  </FormField>
-                  
-                  <FormField label="Status" name="status" required={true}>
-                    <div className="px-3 py-2 border border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 rounded-md">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        formik.values.status === 'Active'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                      }`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${
-                          formik.values.status === 'Active' ? 'bg-green-500' : 'bg-red-500'
-                        }`}></span>
-                        {formik.values.status}
-                      </span>
+                    <div>
+                      <p className="text-xs text-gray-500">Role</p>
+                      <p className="font-medium">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {roles.find(r => r.id == formik.values.role_id)?.name || 'Unknown Role'}
+                        </span>
+                      </p>
                     </div>
-                  </FormField>
-                  
-                  {/* Username in view mode */}
-                  <FormField label="Username (Optional)" name="username">
-                    <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700 rounded-md">
-                      {formik.values.username ? (
-                        <p className="text-base">{formik.values.username}</p>
-                      ) : (
-                        <span className="text-gray-500 italic">No username set (using email)</span>
-                      )}
+                    <div>
+                      <p className="text-xs text-gray-500">Email</p>
+                      <p className="font-medium">{formik.values.email}</p>
                     </div>
-                  </FormField>
-                </div>
-              </div>
-
-              {/* Linked Supplier - Only shown if the role is a supplier role */}
-              {isSupplierRole && (
-                <FormField label="Linked Supplier" name="supplier_id">
-                  <div className="px-3 py-2 bg-gray-50/50 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700 rounded-md">
-                    {formik.values.supplier_id ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                        {suppliers.find(s => s.supplier_id === parseInt(formik.values.supplier_id))?.company_name || 'Unknown Supplier'}
-                      </span>
-                    ) : (
-                      <span className="text-gray-500 text-sm">Not linked to any supplier</span>
+                    <div>
+                      <p className="text-xs text-gray-500">Phone</p>
+                      <p className="font-medium">{formik.values.phone}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Status</p>
+                      <p>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          formik.values.status === 'Active'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                            formik.values.status === 'Active' ? 'bg-green-500' : 'bg-red-500'
+                          }`}></span>
+                          {formik.values.status}
+                        </span>
+                      </p>
+                    </div>
+                    {formik.values.username && (
+                      <div>
+                        <p className="text-xs text-gray-500">Username</p>
+                        <p className="font-medium">{formik.values.username}</p>
+                      </div>
                     )}
                   </div>
-                </FormField>
-              )}
-            </div>
-          </div>
-        ) : (
-          /* EDIT/ADD MODE: Compact vertical layout for modal */
-          <div className="space-y-6">
-            {/* Profile Upload centered at top */}
-            <div className="flex flex-col items-center">
-              <div className="w-full max-w-xs mb-2">
-                <FileUpload
-                  category="staff"
-                  onUploadComplete={handleImageUploadComplete}
-                  onUploadError={handleImageUploadError}
-                  onDeleteComplete={handleImageDelete}
-                  accept="image/jpeg,image/png,image/gif"
-                  maxSize={2}
-                  initialPreview={profileImageUrl || formik.values.profile_image}
-                  previewClass="w-28 h-28 object-cover rounded-full"
-                  previewContainerClass="border border-gray-200 dark:border-gray-700 rounded-full overflow-hidden"
-                  alt={`${formik.values.first_name} ${formik.values.last_name}`}
-                  displayMode={false}
-                  label="Upload Profile Picture"
-                />
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-4">
-                Upload a professional profile photo. <br />
-                Recommended size: 400x400 pixels.
-              </p>
-            </div>
+                ) : (
+                  // Edit mode - keep original layout
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Name fields */}
+                    <FormField label="First Name" name="first_name" required={true}>
+                      <InputField name="first_name" readOnly={readOnly} />
+                    </FormField>
+                    
+                    <FormField label="Last Name" name="last_name" required={true}>
+                      <InputField name="last_name" readOnly={readOnly} />
+                    </FormField>
 
-            {/* Basic Information Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Basic Information
+                    {/* Contact fields */}
+                    <FormField label="Email Address" name="email" required={true}>
+                      <InputField 
+                        name="email" 
+                        readOnly={readOnly}
+                        icon={
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        }
+                      />
+                    </FormField>
+                    
+                    <FormField label="Phone Number" name="phone" required={true}>
+                      <InputField 
+                        name="phone" 
+                        readOnly={readOnly}
+                        icon={
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        }
+                      />
+                    </FormField>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* System Access Section - Only show in edit mode or if there's a role assigned */}
+          {(!readOnly || formik.values.role_id) && (
+            <motion.div 
+              className={`bg-white rounded-lg border border-[#571C1F]/10 ${readOnly ? 'p-4' : 'p-6'} shadow-sm`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+            >
+              <h3 className={`${readOnly ? 'text-base' : 'text-lg'} font-medium text-[#571C1F] ${readOnly ? 'mb-3' : 'mb-4'}`}>
+                System Access & Role
               </h3>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
-                {/* Name row */}
-                <FormField label="First Name" name="first_name" required={true}>
-                  <InputField name="first_name" />
-                </FormField>
+              {readOnly ? (
+                // Read-only compact display for system access
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Role</p>
+                    <p className="font-medium">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {roles.find(r => r.id == formik.values.role_id)?.name || 'Unknown Role'}
+                      </span>
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-xs text-gray-500">Username</p>
+                    <p className="font-medium">
+                      {formik.values.username || 
+                        <span className="text-gray-500 italic text-sm">Using email as login</span>
+                      }
+                    </p>
+                  </div>
+
+                  {isSupplierRole && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-500">Linked Supplier</p>
+                      <p className="font-medium">
+                        {formik.values.supplier_id ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            {suppliers.find(s => s.supplier_id === parseInt(formik.values.supplier_id))?.company_name || 'Unknown Supplier'}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 italic text-sm">Not linked to any supplier</span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Keep original edit mode layout
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Role field */}
+                    <FormField label="Role" name="role_id" required={true}>
+                      <SelectField 
+                        name="role_id"
+                        icon={
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                          </svg>
+                        }
+                      >
+                        <option value="">Select a role</option>
+                        {roles.map(role => (
+                          <option key={role.id} value={role.id}>
+                            {role.name}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </FormField>
+                    
+                    {/* Status field */}
+                    <FormField label="Status" name="status" required={true}>
+                      <SelectField 
+                        name="status"
+                        icon={
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        }
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                      </SelectField>
+                    </FormField>
+                  </div>
+
+                  {/* Username and Password fields */}
+                  <div className="mt-6 p-4 bg-[#FFF6F2]/50 border border-[#571C1F]/10 rounded-md">
+                    <p className="text-sm text-gray-700 mb-4">
+                      Configure login credentials for system access. Username is optional and email will be used if not provided.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Username field */}
+                      <FormField label="Username (Optional)" name="username">
+                        <InputField 
+                          name="username" 
+                          icon={
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          }
+                          autoComplete="username"
+                        />
+                      </FormField>
+
+                      {/* Password field */}
+                      <FormField label={isNewStaff ? 'Password' : 'Change Password'} name="password" required={isNewStaff}>
+                        <InputField 
+                          name="password" 
+                          type="password" 
+                          icon={
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                          }
+                          autoComplete="new-password"
+                          placeholder={isNewStaff ? "" : "(leave blank to keep current)"}
+                        />
+                      </FormField>
+                      
+                      {/* Confirm Password field - Only shown when needed */}
+                      {(isNewStaff || formik.values.password) && (
+                        <FormField label="Confirm Password" name="confirm_password" required={true}>
+                          <InputField 
+                            name="confirm_password" 
+                            type="password" 
+                            icon={
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                              </svg>
+                            }
+                            autoComplete="new-password"
+                          />
+                        </FormField>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+
+          {/* Supplier Link Section - Only shown for Supplier roles */}
+          {isSupplierRole && !readOnly && (
+            <motion.div 
+              className="bg-white rounded-lg border border-[#571C1F]/10 p-6 shadow-sm"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.3 }}
+            >
+              <h3 className="text-lg font-medium text-[#571C1F] mb-4">Supplier Connection</h3>
+              
+              <div className="p-4 bg-[#FFF6F2]/50 border border-[#571C1F]/10 rounded-md">
+                <div className="flex items-center mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#571C1F] mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm font-medium text-[#571C1F]">Supplier Association</span>
+                </div>
+                <p className="text-sm text-gray-700 mb-4">
+                  Link this staff account to a supplier company to provide access to the supplier portal.
+                </p>
                 
-                <FormField label="Last Name" name="last_name" required={true}>
-                  <InputField name="last_name" />
-                </FormField>
-                
-                {/* Contact row */}
-                <FormField label="Email Address" name="email" required={true}>
-                  <InputField 
-                    name="email" 
-                    icon={
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                    }
-                  />
-                </FormField>
-                
-                <FormField label="Phone Number" name="phone" required={true}>
-                  <InputField 
-                    name="phone" 
-                    icon={
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                    }
-                  />
-                </FormField>
-                
-                {/* Role and Status Row */}
-                <FormField label="Role" name="role_id" required={true}>
+                <FormField label="Linked Supplier" name="supplier_id">
                   <SelectField 
-                    name="role_id"
+                    name="supplier_id"
                     icon={
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5m0 0v5m0-5l-6 6M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
                       </svg>
                     }
                   >
-                    <option value="">Select a role</option>
-                    {roles.map(role => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
+                    <option value="">Not linked to any supplier</option>
+                    {suppliers.filter(s => !s.user_id || s.user_id === staffData?.user_id).map(supplier => (
+                      <option key={supplier.supplier_id} value={supplier.supplier_id}>
+                        {supplier.company_name}
                       </option>
                     ))}
                   </SelectField>
                 </FormField>
-                
-                <FormField label="Status" name="status" required={true}>
-                  <SelectField 
-                    name="status"
-                    icon={
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    }
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </SelectField>
-                </FormField>
               </div>
-            </div>
-            
-            {/* System Access Section */}
-            <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-primary" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                </svg>
-                System Access
-              </h3>
-              
-              <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/30 p-3 rounded-md">
-                Configure login credentials for system access. Username is optional and will default to email login if not provided.
-              </p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
-                {/* Username - Now Optional */}
-                <FormField label="Username (Optional)" name="username">
-                  <InputField 
-                    name="username" 
-                    icon={
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    }
-                    autoComplete="username"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    If not provided, staff will use email address for login.
-                  </p>
-                </FormField>
-
-                {/* Password - Only required for new staff */}
-                <FormField label={isNewStaff ? 'Password' : 'Change Password'} name="password" required={isNewStaff}>
-                  <InputField 
-                    name="password" 
-                    type="password" 
-                    icon={
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    }
-                    autoComplete="new-password"
-                    placeholder={isNewStaff ? "" : "(leave blank to keep current)"}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    {isNewStaff ? "Password must contain uppercase, lowercase and digits." : ""}
-                  </p>
-                </FormField>
-
-                {/* Confirm Password - Only if password field has a value */}
-                {(isNewStaff || formik.values.password) && (
-                  <FormField label="Confirm Password" name="confirm_password" required={true}>
-                    <InputField 
-                      name="confirm_password" 
-                      type="password" 
-                      icon={
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                      }
-                      autoComplete="new-password"
-                    />
-                  </FormField>
-                )}
-              </div>
-            </div>
-
-            {/* Supplier Link - Only shown if the role is a supplier role */}
-            {isSupplierRole && (
-              <FormField label="Linked Supplier" name="supplier_id">
-                <SelectField 
-                  name="supplier_id"
-                  icon={
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5m0 0v5m0-5l-6 6M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
-                    </svg>
-                  }
-                >
-                  <option value="">Not linked to any supplier</option>
-                  {suppliers.filter(s => !s.user_id || s.user_id === staffData?.user_id).map(supplier => (
-                    <option key={supplier.supplier_id} value={supplier.supplier_id}>
-                      {supplier.company_name}
-                    </option>
-                  ))}
-                </SelectField>
-                <p className="mt-1 text-xs text-gray-500">
-                  Link this staff account to a supplier for inventory management
-                </p>
-              </FormField>
-            )}
-          </div>
-        )}
-
-        {/* Form actions */}
-        <div className="flex justify-end space-x-3 pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={loading}
-          >
-            {readOnly ? 'Close' : 'Cancel'}
-          </Button>
-          
-          {!readOnly && (
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={loading || !formik.isValid}
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : isNewStaff ? 'Create Staff' : 'Update Staff'}
-            </Button>
+            </motion.div>
           )}
-        </div>
-      </form>
+
+          {/* Form Actions */}
+          <motion.div 
+            className="flex justify-end space-x-3 pt-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+          >
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              {readOnly ? 'Close' : 'Cancel'}
+            </Button>
+            
+            {!readOnly && (
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={loading || !formik.isValid}
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {isNewStaff ? 'Creating...' : 'Updating...'}
+                  </span>
+                ) : (
+                  isNewStaff ? 'Create Staff' : 'Update Staff'
+                )}
+              </Button>
+            )}
+            
+            {readOnly && canManage && (
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  onCancel();
+                  onEdit(staffData?.staff_id);
+                }}
+              >
+                Edit Staff
+              </Button>
+            )}
+          </motion.div>
+        </form>
+      </motion.div>
     </div>
   );
 };

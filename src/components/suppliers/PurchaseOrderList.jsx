@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import { useInventory } from '../../hooks/useInventory';
 import { useSuppliers } from '../../hooks/useSuppliers';
+import { useAuth } from '../../hooks/useAuth';
 import placeholderImage from '../../assets/placeholder-image2.png';
 import ImageWithFallback from '../common/ImageWithFallback';
 
@@ -92,7 +93,10 @@ const PurchaseOrderList = ({
   onAdd,
   loading: externalLoading
 }) => {
-  // Keep existing hooks and state
+  // Add the user from auth context
+  const { user } = useAuth();
+
+  // Add the acceptPurchaseOrder and rejectPurchaseOrder to the destructuring
   const { 
     suppliers = propSuppliers || [], 
     loading: suppliersLoading,
@@ -313,6 +317,78 @@ const PurchaseOrderList = ({
     } catch (err) {
       console.error('Error approving purchase order:', err);
       toast.error(`Failed to approve order: ${err.message}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Handle supplier accept purchase order
+  const handleAcceptOrder = async (purchaseId) => {
+    setProcessing(true);
+    try {
+      // Import supabase at the top of the file if not already there
+      // import supabase from '../../services/supabase';
+      
+      const { data: purchase } = await supabase
+        .from('purchase')
+        .select('*')
+        .eq('purchase_id', purchaseId)
+        .single();
+        
+      if (!purchase) {
+        throw new Error('Purchase order not found');
+      }
+      
+      if (purchase.status !== 'approved') {
+        throw new Error('Only approved purchase orders can be accepted');
+      }
+      
+      const { error: updateError } = await supabase
+        .from('purchase')
+        .update({ 
+          status: 'accepted',
+          updated_at: new Date().toISOString() 
+        })
+        .eq('purchase_id', purchaseId);
+      
+      if (updateError) throw updateError;
+      
+      // Notify staff that created the purchase order
+      if (purchase.created_by) {
+        await supabase.rpc('create_notification', {
+          p_user_id: purchase.created_by,
+          p_title: 'Purchase Order Accepted',
+          p_message: `Purchase order #${purchaseId} has been accepted by supplier`,
+          p_link: `/suppliers?tab=purchase-orders&id=${purchaseId}`
+        });
+      }
+      
+      toast.success('Purchase order accepted');
+      fetchPurchaseOrders();
+      
+      if (showDetailsModal) {
+        setShowDetailsModal(false);
+      }
+    } catch (err) {
+      console.error('Error accepting purchase order:', err);
+      toast.error(`Failed to accept order: ${err.message}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Handle supplier reject purchase order
+  const handleRejectOrder = async (purchaseId, reason) => {
+    setProcessing(true);
+    try {
+      // Call the rejectPurchaseOrder method from useSuppliers
+      await rejectPurchaseOrder(purchaseId, user?.supplier_id, reason);
+      toast.success('Purchase order rejected');
+      // Refresh purchase orders list
+      fetchPurchaseOrders();
+    } catch (err) {
+      console.error('Error rejecting purchase order:', err);
+      toast.error(`Failed to reject order: ${err.message}`);
     } finally {
       setProcessing(false);
     }
@@ -786,6 +862,64 @@ const PurchaseOrderList = ({
                   )}
                 </Button>
               )}
+              
+              {/* Supplier Actions Section - only show for suppliers viewing approved orders */}
+              {currentPurchaseOrder.status === 'approved' && user?.role === 'Supplier' && (
+                <>
+                  <Button 
+                    variant="success" 
+                    onClick={() => handleAcceptOrder(currentPurchaseOrder.purchase_id)}
+                    disabled={processing}
+                    className="flex items-center"
+                  >
+                    {processing ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4}></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                      </span>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Accept
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="danger"
+                    onClick={() => {
+                      Swal.fire({
+                        title: 'Reject Order?',
+                        text: "Please provide a reason for rejecting this order",
+                        input: 'textarea',
+                        inputPlaceholder: 'Reason for rejection...',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#571C1F',
+                        cancelButtonColor: '#6B7280',
+                        confirmButtonText: 'Reject Order'
+                      }).then((result) => {
+                        if (result.isConfirmed) {
+                          handleRejectOrder(currentPurchaseOrder.purchase_id, result.value);
+                          setShowDetailsModal(false);
+                        }
+                      });
+                    }}
+                    disabled={processing}
+                    className="flex items-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Reject
+                  </Button>
+                </>
+              )}
+              
               <Button 
                 variant="outline" 
                 onClick={() => setShowDetailsModal(false)}

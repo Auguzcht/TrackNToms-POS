@@ -528,7 +528,14 @@ export const SalesProvider = ({ children }) => {
             })));
           } catch (inventoryError) {
             console.error('Error updating inventory:', inventoryError);
-            toast.warning('Sale completed but inventory update may be incomplete');
+            toast.error('Sale completed but inventory update may be incomplete', {
+              icon: '⚠️',
+              style: {
+                background: '#FFF9C4',
+                color: '#F57C00',
+                borderColor: '#FFE082'
+              }
+            });
           }
         }
         
@@ -659,7 +666,14 @@ export const SalesProvider = ({ children }) => {
         }
       } catch (inventoryError) {
         console.error('Error restoring inventory:', inventoryError);
-        toast.warning('Sale was voided but inventory restoration may be incomplete');
+        toast.error('Sale was voided but inventory restoration may be incomplete', {
+          icon: '⚠️',
+          style: {
+            background: '#FFF9C4',
+            color: '#F57C00',
+            borderColor: '#FFE082'
+          }
+        });
       }
       
       // Update state

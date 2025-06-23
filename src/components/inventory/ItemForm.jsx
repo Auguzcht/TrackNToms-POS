@@ -217,12 +217,17 @@ const ItemForm = ({ item = null, ingredients = [], onSubmit, onCancel }) => {
         Swal.fire({
           icon: 'success',
           title: 'Success',
-          text: 'Menu item added successfully'
+          text: 'Menu item added successfully',
+          showConfirmButton: false,
+          timer: 1500
         });
+        
+        // Call onSubmit immediately after starting the alert
+        onSubmit(result);
       }
       
       // Immediately pass back the result to trigger list refresh
-      onSubmit(result);
+      
     } catch (error) {
       Swal.fire({
         icon: 'error',

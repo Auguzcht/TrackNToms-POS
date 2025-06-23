@@ -245,55 +245,44 @@ const InventoryPage = () => {
     }
   }, [deleteItem, hasPermission]);
 
-  // Update handleIngredientSubmit to refresh items too if needed
+  // Updated handleIngredientSubmit function
   const handleIngredientSubmit = useCallback(async (result) => {
+    // Close the modal first
     setShowIngredientModal(false);
     setEditingIngredient(null);
     
-    // Refresh ingredients list
-    await fetchIngredients();
-    
-    // Also refresh pullouts since they display ingredient names
-    if (activeTab === 'pullouts') {
-      await fetchPullouts();
-    }
-    
-    setRefreshTrigger(prev => prev + 1);
-    toast.success(`Ingredient ${editingIngredient ? 'updated' : 'added'} successfully!`);
-  }, [editingIngredient, fetchIngredients, fetchPullouts, activeTab]);
+    // Then, after a short delay, trigger refresh and show the toast
+    setTimeout(() => {
+      setRefreshTrigger(prev => prev + 1);
+      toast.success(`Ingredient ${result?.name || ''} ${editingIngredient ? 'updated' : 'added'} successfully!`);
+    }, 100);
+  }, [editingIngredient]);
 
   // Handle the menu item form submission
   const handleItemSubmit = useCallback(async (result) => {
+    // Close the modal first
     setShowItemModal(false);
     setEditingItem(null);
     
-    // Refresh items list
-    await fetchItems();
-    
-    // Also refresh related data if needed
-    if (activeTab === 'items' || editingItem?.is_externally_sourced === false) {
-      // If we're editing a recipe-based item, refresh ingredients too
-      await fetchIngredients();
-    }
-    
-    setRefreshTrigger(prev => prev + 1);
-    toast.success(`Menu item ${editingItem ? 'updated' : 'added'} successfully!`);
-  }, [editingItem, fetchItems, fetchIngredients, activeTab]);
+    // Then, after a short delay, trigger refresh and show the toast
+    setTimeout(() => {
+      setRefreshTrigger(prev => prev + 1);
+      toast.success(`Menu item ${result?.item_name || ''} ${editingItem ? 'updated' : 'added'} successfully!`);
+    }, 100);
+  }, [editingItem]);
 
-  // Update handlePulloutSubmit to refresh both pullouts and ingredients
-  const handlePulloutSubmit = useCallback(() => {
+  // Updated handlePulloutSubmit function
+  const handlePulloutSubmit = useCallback(async (result) => {
+    // Close the modal first
     setShowPulloutModal(false);
     setEditingPullout(null);
     
-    // Refresh pullouts list
-    fetchPullouts();
-    
-    // Also refresh ingredients since pullout may change stock levels
-    fetchIngredients();
-    
-    setRefreshTrigger(prev => prev + 1);
-    toast.success(`Pullout ${editingPullout ? 'updated' : 'created'} successfully!`);
-  }, [editingPullout, fetchPullouts, fetchIngredients]);
+    // Then, after a short delay, trigger refresh and show the toast
+    setTimeout(() => {
+      setRefreshTrigger(prev => prev + 1);
+      toast.success(`Pullout ${editingPullout ? 'updated' : 'created'} successfully!`);
+    }, 100);
+  }, [editingPullout]);
 
   // Handle cancelling ingredient form - FIXED: Added missing function
   const handleIngredientCancel = useCallback(() => {
@@ -391,6 +380,18 @@ const InventoryPage = () => {
       fetchIngredients();
     }
   }, [activeTab, fetchIngredients, fetchItems, fetchPullouts]);
+
+  // Function to handle viewing an ingredient
+  const handleViewIngredient = useCallback((ingredient) => {
+    // This function gets called when the user clicks on an ingredient row to view it
+    console.log('Viewing ingredient:', ingredient?.name);
+    
+    // Since the viewing logic is already handled in the InventoryList component, 
+    // this function just needs to exist to prevent the "not defined" error.
+    // The InventoryList will show the modal internally.
+    
+    // You could add additional logic here if needed in the future
+  }, []);
 
   // Show loading spinner if both permissions and inventory are loading
   if ((loading && !visibleIngredients.length && !visibleItems.length) || permissionsLoading) {
@@ -657,6 +658,8 @@ const InventoryPage = () => {
                       loading={loading}
                       onEdit={canEditIngredient ? handleEditIngredient : null}
                       onDelete={canDeleteIngredient ? handleDeleteIngredient : null}
+                      onView={handleViewIngredient}
+                      onRefresh={() => setRefreshTrigger(prev => prev + 1)} // Add this line
                     />
                   ) : activeTab === 'menu-items' ? (
                     <InventoryList

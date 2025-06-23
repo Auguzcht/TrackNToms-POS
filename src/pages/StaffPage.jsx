@@ -12,6 +12,7 @@ import Button from '../components/common/Button';
 // Import hooks
 import { useAuth } from '../hooks/useAuth';
 import { useStaff } from '../hooks/useStaff';
+import { useSuppliers } from '../hooks/useSuppliers';
 import { toast } from 'react-hot-toast';
 
 const StaffPage = () => {
@@ -19,6 +20,7 @@ const StaffPage = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { staff, roles, fetchStaff, fetchRoles, loading, error } = useStaff();
+  const { suppliers } = useSuppliers();
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [currentStaffId, setCurrentStaffId] = useState(null);
   const [modalMode, setModalMode] = useState('add'); // 'add', 'edit', 'view'
@@ -289,6 +291,7 @@ const StaffPage = () => {
                       onAdd={handleAddStaff}
                       staff={staff}
                       roles={roles}
+                      suppliers={suppliers}
                       loading={loading}
                       error={error}
                     />

@@ -208,7 +208,7 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
       if (ingredient) {
         result = await updateIngredient(ingredient.ingredient_id, ingredientData);
         
-        // If supplier is selected, create or update association
+        // Handle supplier association if needed
         if (selectedSupplierId) {
           try {
             await createIngredientSupplierAssociation(
@@ -221,17 +221,21 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
           }
         }
         
+        // Show success message
         Swal.fire({
           icon: 'success',
           title: 'Success',
           text: 'Ingredient updated successfully',
-          timer: 2000,
+          timer: 1500,
           showConfirmButton: false
         });
+        
+        // Call onSave with the result - ONLY ONCE
+        onSave(result);
       } else {
         result = await addIngredient(ingredientData);
         
-        // If supplier is selected, create association for new ingredient
+        // Handle supplier association if needed
         if (selectedSupplierId && result?.ingredient_id) {
           try {
             await createIngredientSupplierAssociation(
@@ -244,20 +248,18 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
           }
         }
         
+        // Show success message
         Swal.fire({
           icon: 'success',
           title: 'Success',
           text: 'Ingredient added successfully',
-          timer: 2000,
+          timer: 1500,
           showConfirmButton: false
         });
-      }
-      
-      // Immediately trigger a refresh by passing the result back to parent
-      // Make sure we're calling onSave after a short delay to allow the UI to update
-      setTimeout(() => {
+        
+        // Call onSave with the result - ONLY ONCE
         onSave(result);
-      }, 300);
+      }
     } catch (error) {
       Swal.fire({
         icon: 'error',
@@ -532,7 +534,7 @@ const IngredientForm = ({ ingredient = null, onSave = () => {}, onCancel = () =>
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 011 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">

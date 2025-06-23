@@ -1108,7 +1108,14 @@ export const useInventory = () => {
         
         // Check if we need to show low stock warning
         if ((deduction.current_quantity - deduction.quantity) <= deduction.minimum_quantity) {
-          toast.warning(`Low stock alert: ${deduction.name}`);
+          toast.error(`Low stock alert: ${deduction.name}`, {
+            icon: '⚠️',
+            style: {
+              background: '#FFF9C4',
+              color: '#F57C00',
+              borderColor: '#FFE082'
+            }
+          });
         }
       }
       

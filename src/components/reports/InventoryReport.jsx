@@ -130,39 +130,43 @@ const InventoryReport = ({
         // Group by category for charts
         const stockByCategory = {};
         const valueByCategory = [];
-        
-        // Ensure we have categorized data
-        const categorizedIngredients = processedIngredients.map(ing => ({
-          ...ing,
-          category: ing.category || 'Uncategorized'
-        }));
-        
-        // Count by category and status
-        categorizedIngredients.forEach(ing => {
+        const categoryValues = {};
+
+        // Process ingredients by category
+        processedIngredients.forEach(ing => {
+          // Ensure ingredient has a category
+          const category = ing.category || 'Uncategorized';
+          
           // For stock status breakdown
-          if (!stockByCategory[ing.category]) {
-            stockByCategory[ing.category] = {
+          if (!stockByCategory[category]) {
+            stockByCategory[category] = {
               normal: 0,
               low: 0,
               out: 0
             };
           }
-          stockByCategory[ing.category][ing.stockStatus]++;
+          stockByCategory[category][ing.stockStatus]++;
           
-          // For value by category
-          const categoryIndex = valueByCategory.findIndex(cat => cat.category === ing.category);
-          if (categoryIndex === -1) {
-            valueByCategory.push({
-              category: ing.category,
-              value: ing.value
-            });
-          } else {
-            valueByCategory[categoryIndex].value += ing.value;
+          // For value by category - accumulate values
+          if (!categoryValues[category]) {
+            categoryValues[category] = 0;
           }
+          categoryValues[category] += ing.value;
         });
-        
-        // Sort value by category
+
+        // Convert the category values object to an array for the chart
+        Object.keys(categoryValues).forEach(category => {
+          valueByCategory.push({
+            category,
+            value: categoryValues[category]
+          });
+        });
+
+        // Sort categories by value (highest first)
         valueByCategory.sort((a, b) => b.value - a.value);
+
+        // Log to help debugging
+        console.log('Value by category:', valueByCategory);
         
         // Get recent movement data from pullouts
         const recentMovements = [];
@@ -556,55 +560,115 @@ const InventoryReport = ({
         </Card>
         
         <Card 
-          title="Inventory Value by Category" 
+          title="Top Ingredients by Value" 
           className="bg-white border border-[#571C1F]/10 hover:border-[#571C1F]/20 transition-colors duration-200 shadow-sm"
         >
           <div className="mb-2 flex items-center">
             <div className="w-3 h-3 bg-[#003B25] rounded-full mr-2"></div>
-            <span className="text-sm text-gray-500">Highest value inventory categories</span>
+            <span className="text-sm text-gray-500">Highest value ingredients in your inventory</span>
           </div>
           <div className="h-64">
-            <Doughnut 
-              key={`value-chart-${refreshKey}`}
-              data={inventoryValueData}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    position: 'bottom',
-                    labels: {
-                      boxWidth: 12,
-                      padding: 15,
-                      usePointStyle: true,
-                      color: '#333'
+            {reportData.ingredients.length > 0 ? (
+              <Bar
+                key={`top-ingredients-${refreshKey}`}
+                data={{
+                  labels: reportData.ingredients
+                    .sort((a, b) => b.value - a.value)
+                    .slice(0, 7)
+                    .map(ing => ing.name),
+                  datasets: [
+                    {
+                      label: 'Value (₱)',
+                      data: reportData.ingredients
+                        .sort((a, b) => b.value - a.value)
+                        .slice(0, 7)
+                        .map(ing => ing.value),
+                      backgroundColor: [
+                        'rgba(87, 28, 31, 0.8)',
+                        'rgba(0, 59, 37, 0.8)',
+                        'rgba(255, 159, 64, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(153, 102, 255, 0.8)',
+                        'rgba(201, 203, 207, 0.8)',
+                        'rgba(255, 99, 132, 0.8)'
+                      ],
+                      borderColor: [
+                        'rgb(87, 28, 31)',
+                        'rgb(0, 59, 37)',
+                        'rgb(255, 159, 64)',
+                        'rgb(54, 162, 235)',
+                        'rgb(153, 102, 255)',
+                        'rgb(201, 203, 207)',
+                        'rgb(255, 99, 132)'
+                      ],
+                      borderWidth: 1
+                    }
+                  ]
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  indexAxis: 'y', // Makes it a horizontal bar chart
+                  plugins: {
+                    legend: {
+                      display: false
+                    },
+                    tooltip: {
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      titleColor: '#003B25',
+                      bodyColor: '#333',
+                      borderColor: 'rgba(0, 59, 37, 0.2)',
+                      borderWidth: 1,
+                      padding: 10,
+                      boxPadding: 5,
+                      callbacks: {
+                        label: function(context) {
+                          const value = context.raw;
+                          const formattedValue = new Intl.NumberFormat('en-PH', {
+                            style: 'currency',
+                            currency: 'PHP'
+                          }).format(value);
+                          return `${formattedValue}`;
+                        }
+                      }
                     }
                   },
-                  tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    titleColor: '#003B25',
-                    bodyColor: '#333',
-                    borderColor: 'rgba(0, 59, 37, 0.2)',
-                    borderWidth: 1,
-                    padding: 10,
-                    boxPadding: 5,
-                    usePointStyle: true,
-                    callbacks: {
-                      label: function(context) {
-                        const value = context.raw;
-                        const total = context.chart.getDatasetMeta(0).total;
-                        const percentage = Math.round((value / total) * 100);
-                        const formattedValue = new Intl.NumberFormat('en-PH', {
-                          style: 'currency',
-                          currency: 'PHP'
-                        }).format(value);
-                        return `${context.label}: ${formattedValue} (${percentage}%)`;
+                  scales: {
+                    y: {
+                      ticks: {
+                        color: '#333',
+                        font: {
+                          size: 11
+                        },
+                        callback: function(value) {
+                          const label = this.getLabelForValue(value);
+                          // Truncate long names
+                          return label.length > 15 ? label.substring(0, 15) + '...' : label;
+                        }
+                      }
+                    },
+                    x: {
+                      ticks: {
+                        color: '#333',
+                        callback: function(value) {
+                          return '₱' + value.toLocaleString();
+                        }
+                      },
+                      grid: {
+                        display: false
                       }
                     }
                   }
-                }
-              }}
-            />
+                }}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-[#571C1F]/30 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <p className="text-sm">No ingredient data available</p>
+              </div>
+            )}
           </div>
         </Card>
       </div>
@@ -720,7 +784,7 @@ const InventoryReport = ({
               transition={{ type: "spring", stiffness: 260, damping: 20 }}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[#571C1F]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </motion.div>
             <p className="text-sm">No recent inventory movements recorded</p>
@@ -880,7 +944,7 @@ const SummaryCard = ({
     case 'ingredients':
       iconElement = (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#571C1F]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2M7 7h10" />
         </svg>
       );
       break;

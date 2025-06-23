@@ -62,24 +62,35 @@ const InventoryList = ({
     setSelectedIngredient(null);
   };
   
-  // Handle edit from the modal
+  // Update the handleEditFromModal function to prevent double edit forms
   const handleEditFromModal = () => {
-    setViewMode(false); // Switch to edit mode
-    if (onEdit) {
-      onEdit(selectedIngredient);
-    }
+    setShowDetailsModal(false); // Close the current modal first
+    
+    // Wait a small amount of time to ensure modal is closed
+    setTimeout(() => {
+      // Now call the parent's onEdit function to open the edit modal
+      if (onEdit) {
+        onEdit(selectedIngredient);
+      }
+    }, 100);
   };
   
   // Handle save from form (if edit mode is used)
   const handleSaveFromModal = (updatedIngredient) => {
+    // Close the modal first to ensure a smooth UI transition
     setShowDetailsModal(false);
     setSelectedIngredient(null);
     
-    // Call any parent refresh logic
-    if (onEdit && updatedIngredient) {
-      // Pass the updated ingredient back to the parent component
-      onEdit(updatedIngredient);
-    }
+    // Use a short timeout to ensure that parent UI updates properly before triggering a refresh
+    setTimeout(() => {
+      // Call any parent refresh logic
+      if (onRefresh && typeof onRefresh === 'function') {
+        onRefresh(); // Call the refresh handler passed from the parent
+      } else if (onEdit && updatedIngredient) {
+        // If no explicit refresh handler but an onEdit is available, use that
+        onEdit(updatedIngredient);
+      }
+    }, 100);
   };
 
   // Helper function to safely format currency - improved with better error handling
@@ -201,18 +212,20 @@ const InventoryList = ({
     );
   };
 
-  // Reset image errors when data changes
+  // Update the useEffect to properly handle refreshes when data changes
   useEffect(() => {
-    setImageLoadErrors({});
-  }, [data]);
-
-  // Add a useEffect to listen for refresh signals
-  useEffect(() => {
-    // Clear any selection or modals when refreshed externally
+    // Clear any selection or modals when data changes (refreshes)
     if (showDetailsModal) {
       setShowDetailsModal(false);
       setSelectedIngredient(null);
+      setViewMode(true); // Reset to view mode
     }
+    
+    // Reset image errors when data changes
+    setImageLoadErrors({});
+    
+    // This is critical: refresh the filtered and sorted data when the source data changes
+    setSearchQuery(''); // Clear any search filters on data refresh
   }, [data]); // This will trigger when the data prop changes from the parent
 
   // Render table headers based on type

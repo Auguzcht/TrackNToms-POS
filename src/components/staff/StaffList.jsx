@@ -6,6 +6,8 @@ import Modal from '../common/Modal';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom'; // Import useNavigate
 import placeholderImage from '../../assets/placeholder-image.png';
+import ImageWithFallback from '../common/ImageWithFallback';
+import { format } from 'date-fns';
 
 // Update StaffFilters component
 const StaffFilters = ({ filters, setFilters, roles }) => {
@@ -255,12 +257,174 @@ export const useStaff = () => {
   };
 };
 
+const StaffDetails = ({ staff, onEdit, onClose, roles, suppliers }) => {
+  if (!staff) return null;
+  
+  return (
+    <div className="space-y-6 w-full max-w-[95vw] mx-auto">
+      {/* Info banner at the top */}
+      <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-r-md">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-blue-700">
+              View staff member details including contact information and system access
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Personal Information Section */}
+      <motion.div
+        className="bg-white rounded-lg border border-[#571C1F]/10 p-4 shadow-sm"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <h3 className="text-base font-medium text-[#571C1F] mb-3">
+          Personal Information
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Profile Image */}
+          <div className="flex flex-col items-center md:border-r md:border-[#571C1F]/10 md:pr-4">
+            <div className="w-24 h-24">
+              <div className="h-24 w-24 rounded-full overflow-hidden border border-[#571C1F]/10">
+                <ImageWithFallback
+                  src={staff.profile_image}
+                  alt={`${staff.first_name} ${staff.last_name}`}
+                  className="h-24 w-24 object-cover"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Info */}
+          <div className="md:col-span-3 space-y-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-500">Full Name</p>
+                <p className="font-medium text-[#571C1F]">{staff.first_name} {staff.last_name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Role</p>
+                <p className="font-medium">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {staff.role || roles.find(r => r.id === staff.role_id)?.name || 'Unknown Role'}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Email</p>
+                <p className="text-gray-500 italic text-sm">{staff.email}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Phone</p>
+                <p className="text-gray-500 italic text-sm">{staff.phone || 'Not provided'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Status</p>
+                <p>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                    staff.status === 'Active'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                      staff.status === 'Active' ? 'bg-green-500' : 'bg-red-500'
+                    }`}></span>
+                    {staff.status}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Username</p>
+                <p className="font-medium">
+                  {staff.username || 
+                    <span className="text-gray-500 italic text-sm">Using email as login</span>
+                  }
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* System Access Section */}
+      <motion.div 
+        className="bg-white rounded-lg border border-[#571C1F]/10 p-4 shadow-sm"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
+      >
+        <h3 className="text-base font-medium text-[#571C1F] mb-3">
+          Account Details
+        </h3>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-gray-500">Account Created</p>
+            <p className="text-base font-medium text-[#571C1F]">
+              {staff.created_at ? format(new Date(staff.created_at), 'MMM d, yyyy') : 'Unknown'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Last Updated</p>
+            <p className="text-base font-medium text-[#571C1F]">
+              {staff.updated_at ? format(new Date(staff.updated_at), 'MMM d, yyyy') : 'Unknown'}
+            </p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Supplier Connection Section - Only shown for Supplier roles */}
+      {staff.role === 'Supplier' && (
+        <motion.div 
+          className="bg-white rounded-lg border border-[#571C1F]/10 p-4 shadow-sm"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+        >
+          <h3 className="text-base font-medium text-[#571C1F] mb-3">
+            Supplier Connection
+          </h3>
+          
+          <div className="p-4 bg-[#FFF6F2]/50 border border-[#571C1F]/10 rounded-md">
+            <div className="flex items-center mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#571C1F] mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm font-medium text-[#571C1F]">Linked Supplier</span>
+            </div>
+            
+            <div className="mt-2">
+              {staff.supplier_id ? (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  {suppliers.find(s => s.supplier_id === parseInt(staff.supplier_id))?.company_name || 'Unknown Supplier'}
+                </span>
+              ) : (
+                <span className="text-gray-500 italic text-sm">Not linked to any supplier</span>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+};
+
+// Update the StaffList component props to include suppliers
 const StaffList = ({ 
   onEdit = () => {}, 
   onView = () => {}, 
   onAdd = () => {},
   staff = [],
   roles = [],
+  suppliers = [], // Add suppliers prop with empty array default
   loading = false,
   error = null
 }) => {
@@ -279,13 +443,23 @@ const StaffList = ({
   const [staffToDelete, setStaffToDelete] = useState(null);
   const [confirmStatusChange, setConfirmStatusChange] = useState(false);
   const [staffToToggle, setStaffToToggle] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
 
   // Use fetchStaff, fetchRoles, deleteStaff, toggleStaffStatus from useStaff
   const { deleteStaff, toggleStaffStatus } = useStaff();
 
   // Custom handlers for view and edit that use props
   const handleView = (staffId) => {
-    onView(staffId);
+    // Change variable name to avoid shadowing the staff array parameter
+    const staffMember = staff.find(s => s.staff_id === staffId);
+    if (staffMember) {
+      setSelectedStaff(staffMember);
+      setShowDetailsModal(true);
+    } else {
+      // If we want to fetch from parent component instead
+      onView(staffId);
+    }
   };
 
   const handleEdit = (staffId) => {
@@ -510,7 +684,12 @@ const StaffList = ({
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2, delay: index * 0.05 }}
                       className="bg-white hover:bg-[#FFF6F2] dark:bg-dark-lighter dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-                      onClick={() => handleView(staff.staff_id)}
+                      onClick={(e) => {
+                        // Add this to prevent row click when clicking action buttons
+                        if (e.target.closest('button')) return;
+                        console.log('Row clicked for staff:', staff.staff_id);
+                        handleView(staff.staff_id); 
+                      }}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -717,6 +896,55 @@ const StaffList = ({
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Staff Details Modal */}
+      <Modal
+        isOpen={showDetailsModal}
+        onClose={() => setShowDetailsModal(false)}
+        title={
+          selectedStaff && (
+            <div className="flex items-center">
+              <span>
+                {selectedStaff?.first_name} {selectedStaff?.last_name}
+              </span>
+            </div>
+          )
+        }
+        size="3xl"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setShowDetailsModal(false)}
+            >
+              Close
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setShowDetailsModal(false);
+                onEdit(selectedStaff?.staff_id);
+              }}
+              className="inline-flex items-center"
+            >
+              Edit Staff
+            </Button>
+          </>
+        }
+      >
+        {selectedStaff && (
+          <StaffDetails
+            staff={selectedStaff}
+            onEdit={() => {
+              setShowDetailsModal(false);
+              onEdit(selectedStaff?.staff_id);
+            }}
+            onClose={() => setShowDetailsModal(false)}
+            roles={roles}
+            suppliers={suppliers || []}
+          />
+        )}
       </Modal>
     </motion.div>
   );
